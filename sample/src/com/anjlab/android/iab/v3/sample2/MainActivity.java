@@ -18,16 +18,17 @@ package com.anjlab.android.iab.v3.sample2;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.billingclient.api.Purchase;
+import com.android.billingclient.api.SkuDetails;
 import com.anjlab.android.iab.v3.BillingProcessor;
-import com.anjlab.android.iab.v3.SkuDetails;
-import com.anjlab.android.iab.v3.TransactionDetails;
+
+import java.util.List;
 
 public class MainActivity extends Activity {
 	// SAMPLE APP CONSTANTS
@@ -51,37 +52,53 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-		TextView title = (TextView)findViewById(R.id.titleTextView);
+		TextView title = findViewById(R.id.titleTextView);
 		title.setText(String.format(getString(R.string.title), getIntent().getIntExtra(ACTIVITY_NUMBER, 1)));
 
         if(!BillingProcessor.isIabServiceAvailable(this)) {
             showToast("In-app billing service is unavailable, please upgrade Android Market/Play to version >= 3.9.16");
         }
 
-        bp = new BillingProcessor(this, LICENSE_KEY, MERCHANT_ID, new BillingProcessor.IBillingHandler() {
-            @Override
-            public void onProductPurchased(@NonNull String productId, @Nullable TransactionDetails details) {
-				showToast("onProductPurchased: " + productId);
-                updateTextViews();
-            }
-            @Override
-            public void onBillingError(int errorCode, @Nullable Throwable error) {
-                showToast("onBillingError: " + Integer.toString(errorCode));
-            }
+        bp = new BillingProcessor(this, LICENSE_KEY, new BillingProcessor.IBillingHandler() {
+
+
             @Override
             public void onBillingInitialized() {
 				showToast("onBillingInitialized");
                 readyToPurchase = true;
                 updateTextViews();
             }
+
             @Override
-            public void onPurchaseHistoryRestored() {
+            public void onConsumeSuccess(Purchase transaction) {
+                updateTextViews();
+                showToast("Successfully consumed");
+            }
+
+            @Override
+            public void onQuerySkuDetails(List<SkuDetails> skuDetails) {
+
+            }
+
+            @Override
+            public void onProductPurchased(@Nullable Purchase details) {
+                showToast("onProductPurchased: " + details.getSku());
+                updateTextViews();
+            }
+
+            @Override
+            public void onPurchaseHistoryRestored(List<String> products) {
                 showToast("onPurchaseHistoryRestored");
                 for(String sku : bp.listOwnedProducts())
                     Log.d(LOG_TAG, "Owned Managed Product: " + sku);
                 for(String sku : bp.listOwnedSubscriptions())
                     Log.d(LOG_TAG, "Owned Subscription: " + sku);
                 updateTextViews();
+            }
+
+            @Override
+            public void onBillingError(int errorCode) {
+                showToast("onBillingError: " + Integer.toString(errorCode));
             }
         });
     }
@@ -100,16 +117,12 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (!bp.handleActivityResult(requestCode, resultCode, data))
-            super.onActivityResult(requestCode, resultCode, data);
-    }
+
 
     private void updateTextViews() {
-        TextView text = (TextView)findViewById(R.id.productIdTextView);
+        TextView text = findViewById(R.id.productIdTextView);
         text.setText(String.format("%s is%s purchased", PRODUCT_ID, bp.isPurchased(PRODUCT_ID) ? "" : " not"));
-        text = (TextView)findViewById(R.id.subscriptionIdTextView);
+        text = findViewById(R.id.subscriptionIdTextView);
         text.setText(String.format("%s is%s subscribed", SUBSCRIPTION_ID, bp.isSubscribed(SUBSCRIPTION_ID) ? "" : " not"));
     }
 
@@ -127,10 +140,8 @@ public class MainActivity extends Activity {
                 bp.purchase(this,PRODUCT_ID);
                 break;
             case R.id.consumeButton:
-                Boolean consumed = bp.consumePurchase(PRODUCT_ID);
-                updateTextViews();
-                if (consumed)
-                    showToast("Successfully consumed");
+                bp.consumePurchase(PRODUCT_ID);
+
                 break;
             case R.id.productDetailsButton:
 				SkuDetails sku = bp.getPurchaseListingDetails(PRODUCT_ID);
