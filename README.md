@@ -13,17 +13,13 @@ It supports: In-App Product Purchases (both non-consumable and consumable) and S
   - If you guys are using Android Studio and Gradle, add this to you build.gradle file:
 ```groovy
 repositories {
-  mavenCentral()
+  maven { url 'https://www.jitpack.io' }
 }
 dependencies {
-  implementation 'com.anjlab.android.iab.v3:library:1.0.44'
+  implementation 'com.github.LinkZhang:android-inapp-billing-v3:2.0.0'
 }
 ```
 
-* Open the *AndroidManifest.xml* of your application and add this permission:
-```xml
-  <uses-permission android:name="com.android.vending.BILLING" />
-```
 * Create instance of BillingProcessor class and implement callback in your Activity source code. Constructor will take 3 parameters:
   - **Context**
   - **Your License Key from Google Developer console.** This will be used to verify purchase signatures. You can pass NULL if you would like to skip this check (*You can find your key in Google Play Console -> Your App Name -> Services & APIs*)
@@ -53,14 +49,28 @@ public class SomeActivity extends Activity implements BillingProcessor.IBillingH
   }
 	
   @Override
-  public void onProductPurchased(String productId, TransactionDetails details) {
+  public void onProductPurchased(Purchase purchase) {
     /*
     * Called when requested PRODUCT ID was successfully purchased
     */
   }
+  
+  @Override
+  public void onConsumeSuccess(Purchase purchase) {
+   /*
+    * Called when Purchase was successfully consumed
+    */
+  }
+  
+   @Override
+  public void onQuerySkuDetails(List<SkuDetails> skuDetails) {
+   /*
+    * Called when query sku details completed
+    */
+  }
 	
   @Override
-  public void onBillingError(int errorCode, Throwable error) {
+  public void onBillingError(int errorCode) {
     /*
     * Called when some error occurred. See Constants class for more details
     * 
@@ -70,7 +80,7 @@ public class SomeActivity extends Activity implements BillingProcessor.IBillingH
   }
 	
   @Override
-  public void onPurchaseHistoryRestored() {
+  public void onPurchaseHistoryRestored(List<String> products) {
     /*
     * Called when purchase history was restored and the list of all owned PRODUCT ID's 
     * was loaded from Google Play
@@ -79,15 +89,6 @@ public class SomeActivity extends Activity implements BillingProcessor.IBillingH
 }
 ```
 
-* override Activity's onActivityResult method:
-```java
-@Override
-protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-  if (!bp.handleActivityResult(requestCode, resultCode, data)) {
-    super.onActivityResult(requestCode, resultCode, data);
-  }  
-}
-```
 
 * Call `purchase` method for a BillingProcessor instance to initiate purchase or `subscribe` to initiate a subscription:
 
@@ -102,19 +103,6 @@ bp.purchase(YOUR_ACTIVITY, "YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE", "DEV
 bp.subscribe(YOUR_ACTIVITY, "YOUR SUBSCRIPTION ID FROM GOOGLE PLAY CONSOLE HERE", "DEVELOPER PAYLOAD HERE");
 ```
 _IMPORTANT: when you provide a payload, internally the library prepends a string to your payload. For subscriptions, it prepends `"subs:\<productId\>:"`, and for products, it prepends `"inapp:\<productId\>:\<UUID\>:"`. This is important to know if you do any validation on the payload returned from Google Play after a successful purchase._
-
-_With a bundle of extra parameters:_
-
-```java
-Bundle extraParams = new Bundle()
-extraParams.putString("accountId", "MY_ACCOUNT_ID");
-bp.purchase(YOUR_ACTIVITY, "YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE", null /*or developer payload*/, extraParams);
-bp.subscribe(YOUR_ACTIVITY, "YOUR SUBSCRIPTION ID FROM GOOGLE PLAY CONSOLE HERE", null /*or developer payload*/, extraParams);
-```
-
-Use these methods if you want to pass extra parameters, [as documented here](https://developer.android.com/google/play/billing/billing_reference.html#getBuyIntentExtraParams), you can provide a Bundle object.
-
-_Please note that this feature is only available if the target device is support the version 7 of the In App billing API._
 
 * **That's it! A super small and fast in-app library ever!**
 
@@ -191,6 +179,7 @@ To query listing price and a description of your product / subscription listed i
 ```java
 bp.getPurchaseListingDetails("YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE");
 bp.getSubscriptionListingDetails("YOUR SUBSCRIPTION ID FROM GOOGLE PLAY CONSOLE HERE");
+bp.getSkuDetailsAsync("YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE")
 ```
 
 As a result you will get a `SkuDetails` object with the following info included:
