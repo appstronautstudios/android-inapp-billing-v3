@@ -530,7 +530,7 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         return details;
     }
 
-    private void getSkuDetailsAsync(final List<String> productIdList, String purchaseType) {
+    public void getSkuDetailsAsync(final List<String> productIdList, String purchaseType) {
         if (productIdList != null && productIdList.size() > 0) {
             SkuDetailsParams params = SkuDetailsParams.newBuilder()
                     .setSkusList(productIdList)
