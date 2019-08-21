@@ -27,6 +27,8 @@ import android.util.Log;
 import com.android.billingclient.api.BillingClient;
 import com.android.billingclient.api.BillingClientStateListener;
 import com.android.billingclient.api.BillingFlowParams;
+import com.android.billingclient.api.BillingResult;
+import com.android.billingclient.api.ConsumeParams;
 import com.android.billingclient.api.ConsumeResponseListener;
 import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesUpdatedListener;
@@ -104,6 +106,7 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         mSkuDetailsCache = new HashMap<>();
         mBillingClient = BillingClient.newBuilder(context.getApplicationContext())
                 .setListener(this)
+                .enablePendingPurchases()
                 .build();
         if (bindImmediately) {
             bindPlayServices();
@@ -111,8 +114,8 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
     }
 
     @Override
-    public void onPurchasesUpdated(int responseCode, @Nullable List<Purchase> purchases) {
-        if (responseCode == BillingClient.BillingResponse.OK) {
+    public void onPurchasesUpdated(BillingResult result, @Nullable List<Purchase> purchases) {
+        if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
             if (purchases == null) {
                 return;
             }
@@ -136,7 +139,7 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
             }
             savePurchasePayload(null);
         } else {
-            reportBillingError(responseCode);
+            reportBillingError(result.getResponseCode());
         }
     }
 
@@ -175,10 +178,11 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
 
     private void startServiceConnection(final Runnable executeOnSuccess) {
         mBillingClient.startConnection(new BillingClientStateListener() {
+
             @Override
-            public void onBillingSetupFinished(@BillingClient.BillingResponse int billingResponseCode) {
-                Log.d(LOG_TAG, "Setup finished. Response code: " + billingResponseCode);
-                if (billingResponseCode == BillingClient.BillingResponse.OK) {
+            public void onBillingSetupFinished(BillingResult billingResult) {
+                Log.d(LOG_TAG, "Setup finished. Response code: " +billingResult.getResponseCode());
+                if ( billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                     mIsServiceConnected = true;
                     if (executeOnSuccess != null) {
                         executeOnSuccess.run();
@@ -193,7 +197,6 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
             }
         });
     }
-
 
 
     public static boolean isIabServiceAvailable(Context context) {
@@ -235,7 +238,7 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         }
 
         Purchase.PurchasesResult purchasesResult = mBillingClient.queryPurchases(type);
-        if (purchasesResult.getResponseCode() == BillingClient.BillingResponse.OK) {
+        if (purchasesResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
             cacheStorage.clear();
             List<Purchase> purchaseList = purchasesResult.getPurchasesList();
             if (purchaseList != null) {
@@ -334,9 +337,9 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         }
 
 
-        int response = mBillingClient.isFeatureSupported(BillingClient.FeatureType.SUBSCRIPTIONS_UPDATE);
+        int response = mBillingClient.isFeatureSupported(BillingClient.FeatureType.SUBSCRIPTIONS_UPDATE).getResponseCode();
 
-        isSubsUpdateSupported = response == BillingClient.BillingResponse.OK;
+        isSubsUpdateSupported = response == BillingClient.BillingResponseCode.OK;
 
         return isSubsUpdateSupported;
     }
@@ -353,8 +356,9 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         }
 
 
-        int response = mBillingClient.isFeatureSupported(BillingClient.FeatureType.SUBSCRIPTIONS_ON_VR);
-        isSubscriptionOnVRSupported = response == BillingClient.BillingResponse.OK;
+        int response =
+                mBillingClient.isFeatureSupported(BillingClient.FeatureType.SUBSCRIPTIONS_ON_VR).getResponseCode();
+        isSubscriptionOnVRSupported = response == BillingClient.BillingResponseCode.OK;
         return isSubscriptionOnVRSupported;
     }
 
@@ -370,8 +374,9 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         }
 
 
-        int response = mBillingClient.isFeatureSupported(BillingClient.FeatureType.IN_APP_ITEMS_ON_VR);
-        isOneTimePurchaseOnVRSupported = response == BillingClient.BillingResponse.OK;
+        int response =
+                mBillingClient.isFeatureSupported(BillingClient.FeatureType.IN_APP_ITEMS_ON_VR).getResponseCode();
+        isOneTimePurchaseOnVRSupported = response == BillingClient.BillingResponseCode.OK;
         return isOneTimePurchaseOnVRSupported;
     }
 
@@ -407,7 +412,8 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
 
     /**
      * @param activity         the activity calling this method
-     * @param oldProductId     passing null will act the same as {@link #subscribe(Activity, String)}
+     * @param oldProductId     passing null will act the same as
+     * {@link #subscribe(Activity,String,String)}
      * @param productId        the new subscription id
      * @param developerPayload the developer payload
      * @return {@code false} if {@code oldProductIds} is not {@code null} AND change subscription
@@ -467,11 +473,12 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         BillingFlowParams purchaseParams = BillingFlowParams.newBuilder()
                 .setAccountId(purchasePayload)
                 .setVrPurchaseFlow(isSupportVR)
+                .setDeveloperId(purchasePayload)
                 .setOldSku(oldProductId)
                 .setSkuDetails(details)
                 .build();
-        int response = mBillingClient.launchBillingFlow(activity, purchaseParams);
-        return response == BillingClient.BillingResponse.OK;
+        int response = mBillingClient.launchBillingFlow(activity, purchaseParams).getResponseCode();
+        return response == BillingClient.BillingResponseCode.OK;
 
     }
 
@@ -492,18 +499,22 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
 
         final Purchase transaction = getPurchaseTransactionDetails(productId);
         if (transaction != null && !TextUtils.isEmpty(transaction.getPurchaseToken())) {
-            mBillingClient.consumeAsync(transaction.getPurchaseToken(), new ConsumeResponseListener() {
+            ConsumeParams params = ConsumeParams.newBuilder()
+                    .setDeveloperPayload(transaction.getDeveloperPayload())
+                    .setPurchaseToken(transaction.getPurchaseToken())
+                    .build();
+            mBillingClient.consumeAsync(params, new ConsumeResponseListener() {
                 @Override
-                public void onConsumeResponse(int response, String purchaseToken) {
-                    if (response == BillingClient.BillingResponse.OK) {
+                public void onConsumeResponse(BillingResult result, String purchaseToken) {
+                    if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                         cachedProducts.remove(productId);
                         Log.d(LOG_TAG, "Successfully consumed " + productId + " purchase.");
                         if (mEventHandler != null) {
                             mEventHandler.onConsumeSuccess(transaction);
                         }
                     } else {
-                        reportBillingError(response);
-                        Log.e(LOG_TAG, String.format("Failed to consume %s: %d", productId, response));
+                        reportBillingError(result.getResponseCode());
+                        Log.e(LOG_TAG, String.format("Failed to consume %s: %d", productId, result.getResponseCode()));
                     }
                 }
             });
@@ -538,8 +549,8 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
                     .build();
             mBillingClient.querySkuDetailsAsync(params, new SkuDetailsResponseListener() {
                 @Override
-                public void onSkuDetailsResponse(int response, List<SkuDetails> skuDetails) {
-                    if (response == BillingClient.BillingResponse.OK) {
+                public void onSkuDetailsResponse(BillingResult billingResult, List<SkuDetails> skuDetails) {
+                    if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                         if (mEventHandler != null) {
                             for (SkuDetails details : skuDetails) {
                                 mSkuDetailsCache.put(details.getSku(), details);
@@ -547,8 +558,8 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
                             mEventHandler.onQuerySkuDetails(skuDetails);
                         }
                     } else {
-                        reportBillingError(response);
-                        Log.e(LOG_TAG, String.format("Failed to retrieve info for %d products, %d", productIdList.size(), response));
+                        reportBillingError(billingResult.getResponseCode());
+                        Log.e(LOG_TAG, String.format("Failed to retrieve info for %d products, %d", productIdList.size(), billingResult.getResponseCode()));
                     }
                 }
             });
