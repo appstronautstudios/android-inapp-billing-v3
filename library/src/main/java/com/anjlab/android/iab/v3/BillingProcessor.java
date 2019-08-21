@@ -137,7 +137,6 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
                     reportBillingError(BILLING_ERROR_INVALID_SIGNATURE);
                 }
             }
-            savePurchasePayload(null);
         } else {
             reportBillingError(result.getResponseCode());
         }
@@ -500,7 +499,7 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         final Purchase transaction = getPurchaseTransactionDetails(productId);
         if (transaction != null && !TextUtils.isEmpty(transaction.getPurchaseToken())) {
             ConsumeParams params = ConsumeParams.newBuilder()
-                    .setDeveloperPayload(transaction.getDeveloperPayload())
+                    .setDeveloperPayload(getPurchasePayload())
                     .setPurchaseToken(transaction.getPurchaseToken())
                     .build();
             mBillingClient.consumeAsync(params, new ConsumeResponseListener() {
@@ -508,11 +507,16 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
                 public void onConsumeResponse(BillingResult result, String purchaseToken) {
                     if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                         cachedProducts.remove(productId);
+                        savePurchasePayload(null);
                         Log.d(LOG_TAG, "Successfully consumed " + productId + " purchase.");
                         if (mEventHandler != null) {
                             mEventHandler.onConsumeSuccess(transaction);
                         }
                     } else {
+                        if (result.getResponseCode() == BillingClient.BillingResponseCode.ITEM_NOT_OWNED){
+                            cachedProducts.remove(productId);
+                            savePurchasePayload(null);
+                        }
                         reportBillingError(result.getResponseCode());
                         Log.e(LOG_TAG, String.format("Failed to consume %s: %d", productId, result.getResponseCode()));
                     }
