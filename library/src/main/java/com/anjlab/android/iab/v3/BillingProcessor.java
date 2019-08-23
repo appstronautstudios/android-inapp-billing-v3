@@ -54,7 +54,7 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
 
         void onPurchaseHistoryRestored(List<String> products);
 
-        void onBillingError(int errorCode);
+        void onBillingError(BillingResult result);
 
         void onBillingInitialized();
 
@@ -134,11 +134,14 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
                     }
                 } else {
                     Log.e(LOG_TAG, "Public key signature doesn't match!");
-                    reportBillingError(BILLING_ERROR_INVALID_SIGNATURE);
+                    reportBillingError(BillingResult.newBuilder()
+                            .setResponseCode(BillingClient.BillingResponseCode.ERROR)
+                            .setDebugMessage("Public key signature doesn't match!")
+                            .build());
                 }
             }
         } else {
-            reportBillingError(result.getResponseCode());
+            reportBillingError(result);
         }
     }
 
@@ -466,7 +469,10 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
 
         SkuDetails details = getSkuDetails(productId);
         if (details == null) {
-            reportBillingError(BILLING_ERROR_SKU_DETAIL_NOT_FOUND);
+            reportBillingError(BillingResult.newBuilder()
+                    .setDebugMessage("SkuDetails not found")
+                    .setResponseCode(BillingClient.BillingResponseCode.DEVELOPER_ERROR)
+                    .build());
             return false;
         }
         BillingFlowParams purchaseParams = BillingFlowParams.newBuilder()
@@ -517,7 +523,7 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
                             cachedProducts.remove(productId);
                             savePurchasePayload(null);
                         }
-                        reportBillingError(result.getResponseCode());
+                        reportBillingError(result);
                         Log.e(LOG_TAG, String.format("Failed to consume %s: %d", productId, result.getResponseCode()));
                     }
                 }
@@ -562,7 +568,7 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
                             mEventHandler.onQuerySkuDetails(skuDetails);
                         }
                     } else {
-                        reportBillingError(billingResult.getResponseCode());
+                        reportBillingError(billingResult);
                         Log.e(LOG_TAG, String.format("Failed to retrieve info for %d products, %d", productIdList.size(), billingResult.getResponseCode()));
                     }
                 }
@@ -628,9 +634,9 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         return loadString(getPreferencesBaseKey() + PURCHASE_PAYLOAD_CACHE_KEY, null);
     }
 
-    private void reportBillingError(int errorCode) {
+    private void reportBillingError(BillingResult result) {
         if (mEventHandler != null) {
-            mEventHandler.onBillingError(errorCode);
+            mEventHandler.onBillingError(result);
         }
     }
 }
