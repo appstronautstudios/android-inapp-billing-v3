@@ -24,6 +24,7 @@ import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.billingclient.api.BillingResult;
 import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.SkuDetails;
 import com.anjlab.android.iab.v3.BillingProcessor;
@@ -97,8 +98,8 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void onBillingError(int errorCode) {
-                showToast("onBillingError: " + Integer.toString(errorCode));
+            public void onBillingError(BillingResult result) {
+                showToast("onBillingError: " + Integer.toString(result.getResponseCode()));
             }
         });
     }

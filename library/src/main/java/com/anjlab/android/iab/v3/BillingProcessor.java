@@ -79,8 +79,6 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
     private boolean isSubsUpdateSupported;
     private boolean isSubscriptionOnVRSupported;
     private boolean isOneTimePurchaseOnVRSupported;
-    public static final int BILLING_ERROR_SKU_DETAIL_NOT_FOUND = 9;
-    public static final int BILLING_ERROR_INVALID_SIGNATURE = 10;
 
     /**
      * Returns a new {@link BillingProcessor}, without immediately binding to Play Services. If you use
@@ -168,14 +166,18 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
                     mEventHandler.onBillingInitialized();
                 }
                 Log.d(LOG_TAG, "Setup successful. Querying inventory.");
-                if (loadOwnedPurchasesFromGoogle() && mEventHandler != null) {
-                    if (cachedProducts.getContents().size() > 0) {
-                        mEventHandler.onPurchaseHistoryRestored(cachedProducts.getContents());
-                    }
-                }
+                queryPurchasesFromGoogle();
 
             }
         });
+    }
+
+    public void queryPurchasesFromGoogle() {
+        if (loadOwnedPurchasesFromGoogle() && mEventHandler != null) {
+            if (cachedProducts.getContents().size() > 0) {
+                mEventHandler.onPurchaseHistoryRestored(cachedProducts.getContents());
+            }
+        }
     }
 
     private void startServiceConnection(final Runnable executeOnSuccess) {
@@ -245,9 +247,11 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
             List<Purchase> purchaseList = purchasesResult.getPurchasesList();
             if (purchaseList != null) {
                 for (Purchase purchase : purchaseList) {
-                    String jsonData = purchase.getOriginalJson();
-                    if (!TextUtils.isEmpty(jsonData)) {
-                        cacheStorage.put(purchase.getSku(), purchase);
+                    if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+                        String jsonData = purchase.getOriginalJson();
+                        if (!TextUtils.isEmpty(jsonData)) {
+                            cacheStorage.put(purchase.getSku(), purchase);
+                        }
                     }
                 }
             }
