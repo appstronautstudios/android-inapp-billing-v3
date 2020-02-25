@@ -20,10 +20,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.billingclient.api.AcknowledgePurchaseParams;
+import com.android.billingclient.api.AcknowledgePurchaseResponseListener;
 import com.android.billingclient.api.BillingClient;
 import com.android.billingclient.api.BillingClientStateListener;
 import com.android.billingclient.api.BillingFlowParams;
@@ -42,25 +43,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import androidx.annotation.Nullable;
+
 public class BillingProcessor extends BillingBase implements PurchasesUpdatedListener {
 
-    /**
-     * Callback methods where billing events are reported.
-     * Apps must implement one of these to construct a BillingProcessor.
-     */
-    public interface IBillingHandler {
+    private void startServiceConnection(final Runnable executeOnSuccess) {
+        mBillingClient.startConnection(new BillingClientStateListener() {
 
-        void onProductPurchased(@Nullable Purchase details);
+            @Override
+            public void onBillingSetupFinished(BillingResult billingResult) {
+                Log.d(LOG_TAG, "Setup finished. Response code: " + billingResult.getResponseCode());
+                if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                    mIsServiceConnected = true;
+                    if (executeOnSuccess != null) {
+                        executeOnSuccess.run();
+                    }
+                }
+            }
 
-        void onPurchaseHistoryRestored(List<String> products);
-
-        void onBillingError(BillingResult result);
-
-        void onBillingInitialized();
-
-        void onConsumeSuccess(Purchase transaction);
-
-        void onQuerySkuDetails(List<SkuDetails> skuDetails);
+            @Override
+            public void onBillingServiceDisconnected() {
+                Log.d("Billing", "onBillingServiceDisconnected");
+                mIsServiceConnected = false;
+            }
+        });
     }
 
     private static final String LOG_TAG = "iabv3";
@@ -180,26 +186,34 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         }
     }
 
-    private void startServiceConnection(final Runnable executeOnSuccess) {
-        mBillingClient.startConnection(new BillingClientStateListener() {
+    /**
+     * @param activity         the activity calling this method
+     * @param oldProductId     passing null will act the same as
+     *                         {@link #subscribe(Activity, String, String)}
+     * @param productId        the new subscription id
+     * @param developerPayload the developer payload
+     * @return {@code false} if {@code oldProductIds} is not {@code null} AND change subscription
+     * is not supported.
+     * @see <a href="https://developer.android.com/google/play/billing/billing_reference.html#getBuyIntentExtraParams">extra
+     * params documentation on developer.android.com</a>
+     */
+    public boolean updateSubscriptionOnVR(Activity activity, String oldProductId,
+                                          String productId, String developerPayload) {
+        if (!TextUtils.isEmpty(oldProductId) && !isSubscriptionUpdateSupported()) {
+            return false;
+        }
 
-            @Override
-            public void onBillingSetupFinished(BillingResult billingResult) {
-                Log.d(LOG_TAG, "Setup finished. Response code: " +billingResult.getResponseCode());
-                if ( billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                    mIsServiceConnected = true;
-                    if (executeOnSuccess != null) {
-                        executeOnSuccess.run();
-                    }
-                }
-            }
+        // if API v7 is not supported, let's fallback to the previous method
+        if (!isSubscriptionOnVRSupported()) {
+            return updateSubscription(activity, oldProductId, productId, developerPayload);
+        }
 
-            @Override
-            public void onBillingServiceDisconnected() {
-                Log.d("Billing", "onBillingServiceDisconnected");
-                mIsServiceConnected = false;
-            }
-        });
+        return purchase(activity,
+                oldProductId,
+                productId,
+                BillingClient.SkuType.SUBS,
+                developerPayload,
+                true);
     }
 
 
@@ -416,34 +430,39 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
                 developerPayload, false);
     }
 
-    /**
-     * @param activity         the activity calling this method
-     * @param oldProductId     passing null will act the same as
-     * {@link #subscribe(Activity,String,String)}
-     * @param productId        the new subscription id
-     * @param developerPayload the developer payload
-     * @return {@code false} if {@code oldProductIds} is not {@code null} AND change subscription
-     * is not supported.
-     * @see <a href="https://developer.android.com/google/play/billing/billing_reference.html#getBuyIntentExtraParams">extra
-     * params documentation on developer.android.com</a>
-     */
-    public boolean updateSubscriptionOnVR(Activity activity, String oldProductId,
-                                          String productId, String developerPayload) {
-        if (!TextUtils.isEmpty(oldProductId) && !isSubscriptionUpdateSupported()) {
-            return false;
+    public void consumePurchase(final String productId) {
+        if (!isInitialized()) {
+            return;
         }
 
-        // if API v7 is not supported, let's fallback to the previous method
-        if (!isSubscriptionOnVRSupported()) {
-            return updateSubscription(activity, oldProductId, productId, developerPayload);
-        }
+        final Purchase transaction = getPurchaseTransactionDetails(productId);
+        if (transaction != null && !TextUtils.isEmpty(transaction.getPurchaseToken())) {
+            ConsumeParams params = ConsumeParams.newBuilder()
+                    .setDeveloperPayload(getPurchasePayload())
+                    .setPurchaseToken(transaction.getPurchaseToken())
+                    .build();
+            mBillingClient.consumeAsync(params, new ConsumeResponseListener() {
+                @Override
+                public void onConsumeResponse(BillingResult result, String purchaseToken) {
+                    if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                        cachedProducts.remove(productId);
+                        savePurchasePayload(null);
+                        Log.d(LOG_TAG, "Successfully consumed " + productId + " purchase.");
+                        if (mEventHandler != null) {
+                            mEventHandler.onConsumeSuccess(transaction);
+                        }
+                    } else {
+                        if (result.getResponseCode() == BillingClient.BillingResponseCode.ITEM_NOT_OWNED) {
+                            cachedProducts.remove(productId);
+                            savePurchasePayload(null);
+                        }
+                        reportBillingError(result);
+                        Log.e(LOG_TAG, String.format("Failed to consume %s: %d", productId, result.getResponseCode()));
+                    }
+                }
+            });
 
-        return purchase(activity,
-                oldProductId,
-                productId,
-                BillingClient.SkuType.SUBS,
-                developerPayload,
-                true);
+        }
     }
 
     private boolean purchase(Activity activity, String productId, String purchaseType,
@@ -501,40 +520,64 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         return null;
     }
 
-    public void consumePurchase(final String productId) {
+    public void acknowledgePurchase(final String productId) {
         if (!isInitialized()) {
             return;
         }
 
-        final Purchase transaction = getPurchaseTransactionDetails(productId);
+        final Purchase transaction = getSubscriptionTransactionDetails(productId);
         if (transaction != null && !TextUtils.isEmpty(transaction.getPurchaseToken())) {
-            ConsumeParams params = ConsumeParams.newBuilder()
-                    .setDeveloperPayload(getPurchasePayload())
-                    .setPurchaseToken(transaction.getPurchaseToken())
-                    .build();
-            mBillingClient.consumeAsync(params, new ConsumeResponseListener() {
+            if (transaction.isAcknowledged()) {
+                return;
+            }
+            AcknowledgePurchaseParams acknowledgePurchaseParams =
+                    AcknowledgePurchaseParams.newBuilder()
+                            .setPurchaseToken(transaction.getPurchaseToken())
+                            .setDeveloperPayload(getPurchasePayload())
+                            .build();
+
+            mBillingClient.acknowledgePurchase(acknowledgePurchaseParams, new AcknowledgePurchaseResponseListener() {
                 @Override
-                public void onConsumeResponse(BillingResult result, String purchaseToken) {
+                public void onAcknowledgePurchaseResponse(BillingResult result) {
                     if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                         cachedProducts.remove(productId);
                         savePurchasePayload(null);
                         Log.d(LOG_TAG, "Successfully consumed " + productId + " purchase.");
                         if (mEventHandler != null) {
-                            mEventHandler.onConsumeSuccess(transaction);
+                            mEventHandler.onAcknowledgeSuccess(transaction);
                         }
                     } else {
-                        if (result.getResponseCode() == BillingClient.BillingResponseCode.ITEM_NOT_OWNED){
-                            cachedProducts.remove(productId);
-                            savePurchasePayload(null);
-                        }
                         reportBillingError(result);
-                        Log.e(LOG_TAG, String.format("Failed to consume %s: %d", productId, result.getResponseCode()));
+                        Log.e(LOG_TAG, String.format("Failed to acknowledgePurchase %s: %d", productId, result.getResponseCode()));
                     }
                 }
             });
 
         }
     }
+
+
+    /**
+     * Callback methods where billing events are reported.
+     * Apps must implement one of these to construct a BillingProcessor.
+     */
+    public interface IBillingHandler {
+
+        void onProductPurchased(@Nullable Purchase details);
+
+        void onPurchaseHistoryRestored(List<String> products);
+
+        void onBillingError(BillingResult result);
+
+        void onBillingInitialized();
+
+        void onConsumeSuccess(Purchase transaction);
+
+        void onAcknowledgeSuccess(Purchase transaction);
+
+        void onQuerySkuDetails(List<SkuDetails> skuDetails);
+    }
+
 
     private SkuDetails getSkuDetails(String productId) {
         if (mSkuDetailsCache != null && mSkuDetailsCache.containsKey(productId)) {
@@ -634,7 +677,7 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         saveString(getPreferencesBaseKey() + PURCHASE_PAYLOAD_CACHE_KEY, value);
     }
 
-    private String getPurchasePayload() {
+    public String getPurchasePayload() {
         return loadString(getPreferencesBaseKey() + PURCHASE_PAYLOAD_CACHE_KEY, null);
     }
 

@@ -1,12 +1,12 @@
 /**
  * Copyright 2014 AnjLab
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,7 +18,6 @@ package com.anjlab.android.iab.v3.sample2;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
@@ -31,10 +30,12 @@ import com.anjlab.android.iab.v3.BillingProcessor;
 
 import java.util.List;
 
+import androidx.annotation.Nullable;
+
 public class MainActivity extends Activity {
-	// SAMPLE APP CONSTANTS
-	private static final String ACTIVITY_NUMBER = "activity_num";
-	private static final String LOG_TAG = "iabv3";
+    // SAMPLE APP CONSTANTS
+    private static final String ACTIVITY_NUMBER = "activity_num";
+    private static final String LOG_TAG = "iabv3";
 
     // PRODUCT & SUBSCRIPTION IDS
     private static final String PRODUCT_ID = "com.anjlab.test.iab.s2.p5";
@@ -42,21 +43,21 @@ public class MainActivity extends Activity {
     private static final String LICENSE_KEY = null; // PUT YOUR MERCHANT KEY HERE;
     // put your Google merchant id here (as stated in public profile of your Payments Merchant Center)
     // if filled library will provide protection against Freedom alike Play Market simulators
-    private static final String MERCHANT_ID=null;
+    private static final String MERCHANT_ID = null;
 
-	private BillingProcessor bp;
-	private boolean readyToPurchase = false;
+    private BillingProcessor bp;
+    private boolean readyToPurchase = false;
 
 
-	@Override
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-		TextView title = findViewById(R.id.titleTextView);
-		title.setText(String.format(getString(R.string.title), getIntent().getIntExtra(ACTIVITY_NUMBER, 1)));
+        TextView title = findViewById(R.id.titleTextView);
+        title.setText(String.format(getString(R.string.title), getIntent().getIntExtra(ACTIVITY_NUMBER, 1)));
 
-        if(!BillingProcessor.isIabServiceAvailable(this)) {
+        if (!BillingProcessor.isIabServiceAvailable(this)) {
             showToast("In-app billing service is unavailable, please upgrade Android Market/Play to version >= 3.9.16");
         }
 
@@ -65,7 +66,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onBillingInitialized() {
-				showToast("onBillingInitialized");
+                showToast("onBillingInitialized");
                 readyToPurchase = true;
                 updateTextViews();
             }
@@ -74,6 +75,11 @@ public class MainActivity extends Activity {
             public void onConsumeSuccess(Purchase transaction) {
                 updateTextViews();
                 showToast("Successfully consumed");
+            }
+
+            @Override
+            public void onAcknowledgeSuccess(Purchase transaction) {
+
             }
 
             @Override
@@ -90,34 +96,33 @@ public class MainActivity extends Activity {
             @Override
             public void onPurchaseHistoryRestored(List<String> products) {
                 showToast("onPurchaseHistoryRestored");
-                for(String sku : bp.listOwnedProducts())
+                for (String sku : bp.listOwnedProducts())
                     Log.d(LOG_TAG, "Owned Managed Product: " + sku);
-                for(String sku : bp.listOwnedSubscriptions())
+                for (String sku : bp.listOwnedSubscriptions())
                     Log.d(LOG_TAG, "Owned Subscription: " + sku);
                 updateTextViews();
             }
 
             @Override
             public void onBillingError(BillingResult result) {
-                showToast("onBillingError: " + Integer.toString(result.getResponseCode()));
+                showToast("onBillingError: " + result.getResponseCode());
             }
         });
     }
 
-	@Override
-	protected void onResume() {
-		super.onResume();
+    @Override
+    protected void onResume() {
+        super.onResume();
 
-		updateTextViews();
-	}
+        updateTextViews();
+    }
 
-	@Override
+    @Override
     public void onDestroy() {
         if (bp != null)
             bp.release();
         super.onDestroy();
     }
-
 
 
     private void updateTextViews() {
@@ -138,18 +143,21 @@ public class MainActivity extends Activity {
         }
         switch (v.getId()) {
             case R.id.purchaseButton:
-                bp.purchase(this,PRODUCT_ID);
+                bp.purchase(this, PRODUCT_ID);
                 break;
             case R.id.consumeButton:
                 bp.consumePurchase(PRODUCT_ID);
 
                 break;
             case R.id.productDetailsButton:
-				SkuDetails sku = bp.getPurchaseListingDetails(PRODUCT_ID);
+                SkuDetails sku = bp.getPurchaseListingDetails(PRODUCT_ID);
                 showToast(sku != null ? sku.toString() : "Failed to load SKU details");
                 break;
             case R.id.subscribeButton:
-                bp.subscribe(this,SUBSCRIPTION_ID);
+                bp.subscribe(this, SUBSCRIPTION_ID);
+                break;
+            case R.id.acknowledgePurchaseButton:
+                bp.acknowledgePurchase(SUBSCRIPTION_ID);
                 break;
             case R.id.updateSubscriptionsButton:
                 if (bp.loadOwnedPurchasesFromGoogle()) {
@@ -158,12 +166,12 @@ public class MainActivity extends Activity {
                 }
                 break;
             case R.id.subsDetailsButton:
-				SkuDetails subs = bp.getSubscriptionListingDetails(SUBSCRIPTION_ID);
-				showToast(subs != null ? subs.toString() : "Failed to load subscription details");
-				break;
-			case R.id.launchMoreButton:
-				startActivity(new Intent(this, MainActivity.class).putExtra(ACTIVITY_NUMBER, getIntent().getIntExtra(ACTIVITY_NUMBER, 1) + 1));
-				break;
+                SkuDetails subs = bp.getSubscriptionListingDetails(SUBSCRIPTION_ID);
+                showToast(subs != null ? subs.toString() : "Failed to load subscription details");
+                break;
+            case R.id.launchMoreButton:
+                startActivity(new Intent(this, MainActivity.class).putExtra(ACTIVITY_NUMBER, getIntent().getIntExtra(ACTIVITY_NUMBER, 1) + 1));
+                break;
             default:
                 break;
         }

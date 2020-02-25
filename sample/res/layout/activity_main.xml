@@ -1,45 +1,45 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-            xmlns:tools="http://schemas.android.com/tools"
-            android:layout_width="fill_parent"
-            android:layout_height="fill_parent">
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent">
 
     <LinearLayout
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
         android:gravity="center_horizontal"
-        tools:context=".MainActivity" >
+        android:orientation="vertical"
+        tools:context=".MainActivity">
 
         <TextView
             android:id="@+id/titleTextView"
-            android:layout_marginTop="10dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textAppearance="?android:attr/textAppearanceLarge"
-            android:text="@string/title" />
+            android:layout_marginTop="10dp"
+            android:text="@string/title"
+            android:textAppearance="?android:attr/textAppearanceLarge" />
 
         <Button
+            android:id="@+id/launchMoreButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="Launch Another One"
             android:layout_gravity="center"
+            android:layout_marginTop="10dp"
             android:onClick="onClick"
-            android:id="@+id/launchMoreButton" />
+            android:text="Launch Another One" />
 
         <TextView
-            android:layout_marginTop="10dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textAppearance="?android:attr/textAppearanceLarge"
-            android:text="Products" />
+            android:layout_marginTop="10dp"
+            android:text="Products"
+            android:textAppearance="?android:attr/textAppearanceLarge" />
 
         <TextView
             android:id="@+id/productIdTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/wait"
-            android:layout_marginTop="10dp" />
+            android:layout_marginTop="10dp"
+            android:text="@string/wait" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -49,43 +49,43 @@
             android:orientation="horizontal">
 
             <Button
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Purchase"
-                android:layout_marginRight="20dp"
-                android:onClick="onClick"
-                android:id="@+id/purchaseButton" />
-
-            <Button
+                android:id="@+id/purchaseButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginRight="20dp"
-                android:text="Consume"
                 android:onClick="onClick"
-                android:id="@+id/consumeButton"/>
+                android:text="Purchase" />
 
             <Button
+                android:id="@+id/consumeButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Details"
+                android:layout_marginRight="20dp"
                 android:onClick="onClick"
-                android:id="@+id/productDetailsButton"/>
+                android:text="Consume" />
+
+            <Button
+                android:id="@+id/productDetailsButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:onClick="onClick"
+                android:text="Details" />
 
         </LinearLayout>
 
         <TextView
-            android:layout_marginTop="10dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textAppearance="?android:attr/textAppearanceLarge"
-            android:text="Subscriptions" />
+            android:layout_marginTop="10dp"
+            android:text="Subscriptions"
+            android:textAppearance="?android:attr/textAppearanceLarge" />
 
         <TextView
             android:id="@+id/subscriptionIdTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/wait"
-            android:layout_marginTop="10dp" />
+            android:layout_marginTop="10dp"
+            android:text="@string/wait" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -95,27 +95,35 @@
             android:orientation="horizontal">
 
             <Button
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Subscribe"
                 android:id="@+id/subscribeButton"
-                android:onClick="onClick"
-                android:layout_marginRight="20dp" />
-
-            <Button
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginRight="20dp"
-                android:text="Update"
                 android:onClick="onClick"
-                android:id="@+id/updateSubscriptionsButton" />
+                android:text="Subscribe" />
 
             <Button
+                android:id="@+id/acknowledgePurchaseButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Details"
+                android:layout_marginRight="20dp"
                 android:onClick="onClick"
-                android:id="@+id/subsDetailsButton"/>
+                android:text="acknowledge" />
+
+            <Button
+                android:id="@+id/updateSubscriptionsButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginRight="20dp"
+                android:onClick="onClick"
+                android:text="Update" />
+
+            <Button
+                android:id="@+id/subsDetailsButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:onClick="onClick"
+                android:text="Details" />
 
         </LinearLayout>
 
