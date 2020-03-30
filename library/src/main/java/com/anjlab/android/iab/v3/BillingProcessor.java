@@ -520,7 +520,7 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         return null;
     }
 
-    public void acknowledgePurchase(final String productId) {
+    public void acknowledgeSubscription(final String productId) {
         if (!isInitialized()) {
             return;
         }
@@ -556,6 +556,41 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
         }
     }
 
+    public void acknowledgeManagedProduct(final String productId) {
+        if (!isInitialized()) {
+            return;
+        }
+
+        final Purchase transaction = getPurchaseTransactionDetails(productId);
+        if (transaction != null && !TextUtils.isEmpty(transaction.getPurchaseToken())) {
+            if (transaction.isAcknowledged()) {
+                return;
+            }
+            AcknowledgePurchaseParams acknowledgePurchaseParams =
+                    AcknowledgePurchaseParams.newBuilder()
+                            .setPurchaseToken(transaction.getPurchaseToken())
+                            .setDeveloperPayload(getPurchasePayload())
+                            .build();
+
+            mBillingClient.acknowledgePurchase(acknowledgePurchaseParams, new AcknowledgePurchaseResponseListener() {
+                @Override
+                public void onAcknowledgePurchaseResponse(BillingResult result) {
+                    if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                        cachedProducts.remove(productId);
+                        savePurchasePayload(null);
+                        Log.d(LOG_TAG, "Successfully consumed " + productId + " purchase.");
+                        if (mEventHandler != null) {
+                            mEventHandler.onAcknowledgeSuccess(transaction);
+                        }
+                    } else {
+                        reportBillingError(result);
+                        Log.e(LOG_TAG, String.format("Failed to acknowledgePurchase %s: %d", productId, result.getResponseCode()));
+                    }
+                }
+            });
+
+        }
+    }
 
     /**
      * Callback methods where billing events are reported.
