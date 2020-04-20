@@ -540,7 +540,6 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
                 @Override
                 public void onAcknowledgePurchaseResponse(BillingResult result) {
                     if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                        cachedProducts.remove(productId);
                         savePurchasePayload(null);
                         Log.d(LOG_TAG, "Successfully consumed " + productId + " purchase.");
                         if (mEventHandler != null) {
@@ -576,7 +575,6 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
                 @Override
                 public void onAcknowledgePurchaseResponse(BillingResult result) {
                     if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                        cachedProducts.remove(productId);
                         savePurchasePayload(null);
                         Log.d(LOG_TAG, "Successfully consumed " + productId + " purchase.");
                         if (mEventHandler != null) {
