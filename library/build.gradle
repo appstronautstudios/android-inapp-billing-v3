@@ -32,5 +32,5 @@ dependencies {
     androidTestCompile 'androidx.test:rules:1.1.1'
 
     api 'androidx.annotation:annotation:1.0.0'
-    api 'com.android.billingclient:billing:2.1.0'
+    api 'com.android.billingclient:billing:2.2.0'
 }

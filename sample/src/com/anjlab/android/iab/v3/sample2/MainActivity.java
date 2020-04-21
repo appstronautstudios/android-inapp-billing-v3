@@ -157,7 +157,7 @@ public class MainActivity extends Activity {
                 bp.subscribe(this, SUBSCRIPTION_ID);
                 break;
             case R.id.acknowledgePurchaseButton:
-                bp.acknowledgePurchase(SUBSCRIPTION_ID);
+                bp.acknowledgeSubscription(SUBSCRIPTION_ID);
                 break;
             case R.id.updateSubscriptionsButton:
                 if (bp.loadOwnedPurchasesFromGoogle()) {

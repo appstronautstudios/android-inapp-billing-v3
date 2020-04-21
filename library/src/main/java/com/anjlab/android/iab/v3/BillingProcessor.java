@@ -261,11 +261,8 @@ public class BillingProcessor extends BillingBase implements PurchasesUpdatedLis
             List<Purchase> purchaseList = purchasesResult.getPurchasesList();
             if (purchaseList != null) {
                 for (Purchase purchase : purchaseList) {
-                    if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
-                        String jsonData = purchase.getOriginalJson();
-                        if (!TextUtils.isEmpty(jsonData)) {
-                            cacheStorage.put(purchase.getSku(), purchase);
-                        }
+                    if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED || purchase.getPurchaseState() == Purchase.PurchaseState.UNSPECIFIED_STATE) {
+                        cacheStorage.put(purchase.getSku(), purchase);
                     }
                 }
             }
