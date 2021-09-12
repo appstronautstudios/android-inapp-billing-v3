@@ -149,7 +149,7 @@ public class BillingProcessor extends BillingBase
 		}
 	};
 
-	private void handlePurchase(Purchase purchase)
+	private void handlePurchase(final Purchase purchase)
 	{
 
 		ConsumeParams consumeParams =
@@ -164,7 +164,18 @@ public class BillingProcessor extends BillingBase
 			{
 				if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK)
 				{
-					// Handle the success of the consume operation.
+					if(eventHandler != null)
+					{
+						TransactionDetails transactionDetails = getPurchaseTransactionDetails(purchase.getSkus().get(0));
+						eventHandler.onProductPurchased(purchase.getSkus().get(0), transactionDetails);
+					}
+				}
+				else
+				{
+					if (eventHandler != null)
+					{
+						eventHandler.onBillingError(billingResult.getResponseCode(), new Throwable(billingResult.getDebugMessage()));
+					}
 				}
 			}
 		};
@@ -174,7 +185,21 @@ public class BillingProcessor extends BillingBase
 			@Override
 			public void onAcknowledgePurchaseResponse(@NonNull BillingResult billingResult)
 			{
-
+				if(billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK)
+				{
+					if(eventHandler != null)
+					{
+						TransactionDetails transactionDetails = getPurchaseTransactionDetails(purchase.getSkus().get(0));
+						eventHandler.onProductPurchased(purchase.getSkus().get(0), transactionDetails);
+					}
+				}
+				else
+				{
+					if (eventHandler != null)
+					{
+						eventHandler.onBillingError(billingResult.getResponseCode(), new Throwable(billingResult.getDebugMessage()));
+					}
+				}
 			}
 		};
 
