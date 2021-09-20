@@ -63,11 +63,11 @@ public class TransactionDetails implements Parcelable
 	public String toString()
 	{
 		return String.format(Locale.US, "%s purchased at %s(%s). Token: %s, Signature: %s",
-							 productId,
-							 purchaseTime,
-							 orderId,
-							 purchaseToken,
-							 purchaseInfo.signature);
+				productId,
+				purchaseTime,
+				orderId,
+				purchaseToken,
+				purchaseInfo.signature);
 	}
 
 	@Override

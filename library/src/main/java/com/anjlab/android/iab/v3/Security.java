@@ -59,15 +59,15 @@ class Security
                                          String signedData, String signature)
     {
         if (TextUtils.isEmpty(signedData) || TextUtils.isEmpty(base64PublicKey) ||
-            TextUtils.isEmpty(signature))
+                TextUtils.isEmpty(signature))
         {
 
             if (
                     productId.equals("android.test.purchased") ||
-                    productId.equals("android.test.canceled") ||
-                    productId.equals("android.test.refunded") ||
-                    productId.equals("android.test.item_unavailable")
-                    )
+                            productId.equals("android.test.canceled") ||
+                            productId.equals("android.test.refunded") ||
+                            productId.equals("android.test.item_unavailable")
+            )
             {
                 return true;
             }

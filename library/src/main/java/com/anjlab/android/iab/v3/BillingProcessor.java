@@ -156,7 +156,7 @@ public class BillingProcessor extends BillingBase {
 
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-           // billingService = IInAppBillingService.Stub.asInterface(service);
+            // billingService = IInAppBillingService.Stub.asInterface(service);
             new HistoryInitializationTask().execute();
         }
     };
@@ -475,9 +475,9 @@ public class BillingProcessor extends BillingBase {
     }
 
     /*
-    * todo: work on Onetimepurchase and handle all pending orders
-    *  currently all pending orders are refunded after 3days if not acknowledged
-    *  */
+     * todo: work on Onetimepurchase and handle all pending orders
+     *  currently all pending orders are refunded after 3days if not acknowledged
+     *  */
 	/*public boolean isOneTimePurchaseSupported()
 	{
 
@@ -813,9 +813,9 @@ public class BillingProcessor extends BillingBase {
                                             String responseMessage = "Billing response; ";
 
                                             if (responseCode == BillingClient.BillingResponseCode.OK) {
-                                               // showToast(activity,responseMessage + "Ok");
+                                                // showToast(activity,responseMessage + "Ok");
                                                 // Toast.makeText(activity, responseMessage + "Ok", Toast.LENGTH_SHORT).show();
-                                                 Log.d("ReadyToPurchase","Launch Billing Flow Successful");
+                                                Log.d("ReadyToPurchase","Launch Billing Flow Successful");
 
                                             }
 
@@ -1063,10 +1063,10 @@ public class BillingProcessor extends BillingBase {
     }
 
     /**
-    * You can handle this in the onActivity of your app, This is especially good for those interested in saving the
-    * purchaseToken in their server. Google recommended using purchaseToken to handle this for consumed products as this is unique for
-    * all purchases made by users
-    * */
+     * You can handle this in the onActivity of your app, This is especially good for those interested in saving the
+     * purchaseToken in their server. Google recommended using purchaseToken to handle this for consumed products as this is unique for
+     * all purchases made by users
+     * */
     public boolean handleActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode != PURCHASE_FLOW_REQUEST_CODE) {
             return false;
@@ -1263,7 +1263,7 @@ public class BillingProcessor extends BillingBase {
                         @Override
                         public void run() {
 
-                          //  showToast(context,"You have completed payment for iab " + purchaseToken);
+                            //  showToast(context,"You have completed payment for iab " + purchaseToken);
                         }
                     });
 
@@ -1294,7 +1294,7 @@ public class BillingProcessor extends BillingBase {
 
                 handleActivityResult(PURCHASE_FLOW_REQUEST_CODE,Activity.RESULT_OK, intent);
 
-               billingService.acknowledgePurchase(acknowledgePurchaseParams, acknowledgePurchaseResponseListener);
+                billingService.acknowledgePurchase(acknowledgePurchaseParams, acknowledgePurchaseResponseListener);
             }
 
 
