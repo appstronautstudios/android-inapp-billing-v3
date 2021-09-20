@@ -28,9 +28,6 @@ class BillingBase
 		this.context = context;
 	}
 
-	public BillingBase() {
-	}
-
 	Context getContext()
 	{
 		return context;

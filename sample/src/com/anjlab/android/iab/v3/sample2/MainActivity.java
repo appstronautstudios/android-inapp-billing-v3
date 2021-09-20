@@ -62,7 +62,6 @@ public class MainActivity extends Activity  implements BillingProcessor.IBilling
         //bp = BillingProcessor.getInstance();
 
         bp = new BillingProcessor(this,LICENSE_KEY,MERCHANT_ID,this);
-        bp.connect(this); //Connection required based on google Version 3 for inapp lib
         bp.initialize(); //Bind to playstore with history check
 
     }
