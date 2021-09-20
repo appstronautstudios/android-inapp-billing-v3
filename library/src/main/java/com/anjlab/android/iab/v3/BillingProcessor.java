@@ -592,13 +592,11 @@ public class BillingProcessor extends BillingBase {
             skuList.add(productId);
 
             if (skuList.size() > 0) {
-
                 params.setSkusList(skuList).setType(purchaseType);
                 billingClient.querySkuDetailsAsync(params.build(),
                         new SkuDetailsResponseListener() {
                             @Override
-                            public void onSkuDetailsResponse(BillingResult billingResult,
-                                                             List<com.android.billingclient.api.SkuDetails> skuDetailsList) {
+                            public void onSkuDetailsResponse(@NonNull BillingResult billingResult, List<com.android.billingclient.api.SkuDetails> skuDetailsList) {
                                 if (skuDetailsList.size() > 0) {
                                     com.android.billingclient.api.SkuDetails skuDetails = null;
                                     for (int i = 0; i < skuDetailsList.size(); i++) {
@@ -708,7 +706,6 @@ public class BillingProcessor extends BillingBase {
             TransactionDetails transaction = getPurchaseTransactionDetails(productId, cachedProducts);
             if (transaction != null && !TextUtils.isEmpty(transaction.purchaseInfo.purchaseData.purchaseToken)) {
                 int response = billingClient.queryPurchases(productId).getResponseCode();
-
                 if (response == Constants.BILLING_RESPONSE_RESULT_OK) {
                     cachedProducts.remove(productId);
                     Log.d(LOG_TAG, "Successfully consumed " + productId + " purchase.");
@@ -723,7 +720,7 @@ public class BillingProcessor extends BillingBase {
         return false;
     }
 
-    private List<SkuDetails> getSkuDetailsAsync(final ArrayList<String> productIdList, String purchaseType, final SuccessFailListener listener) {
+    private void getSkuDetailsAsync(final ArrayList<String> productIdList, String purchaseType, final SuccessFailListener listener) {
         if (billingClient != null && productIdList != null && productIdList.size() > 0) {
             SkuDetailsParams skuDetailsParams = SkuDetailsParams.newBuilder()
                     .setSkusList(productIdList)
@@ -759,7 +756,6 @@ public class BillingProcessor extends BillingBase {
                 }
             });
         }
-        return null;
     }
 
     public void getPurchaseListingDetails(String productId, SuccessFailListener listener) {
@@ -922,7 +918,7 @@ public class BillingProcessor extends BillingBase {
 
                 billingClient.queryPurchasesAsync(type, new PurchasesResponseListener() {
                     @Override
-                    public void onQueryPurchasesResponse(BillingResult billingResult, List<Purchase> list) {
+                    public void onQueryPurchasesResponse(@NonNull BillingResult billingResult, @NonNull List<Purchase> list) {
                         purchaseResult[0] = billingResult;
                         purchaseList.addAll(list);
                     }
