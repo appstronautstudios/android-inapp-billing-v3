@@ -658,20 +658,19 @@ public class BillingProcessor extends BillingBase {
      * @return boolean
      */
     private boolean checkMerchant(TransactionDetails details) {
-        if (developerMerchantId == null) //omit merchant id checking
-        {
+        //omit merchant id checking
+        if (developerMerchantId == null) {
             return true;
         }
-        if (details.purchaseInfo.purchaseData.purchaseTime.before(DATE_MERCHANT_LIMIT_1)) //newest format applied
-        {
+        //newest format applied
+        if (details.purchaseInfo.purchaseData.purchaseTime.before(DATE_MERCHANT_LIMIT_1)) {
             return true;
         }
-        if (details.purchaseInfo.purchaseData.purchaseTime.after(DATE_MERCHANT_LIMIT_2)) //newest format applied
-        {
+        //newest format applied
+        if (details.purchaseInfo.purchaseData.purchaseTime.after(DATE_MERCHANT_LIMIT_2)) {
             return true;
         }
-        if (details.purchaseInfo.purchaseData.orderId == null ||
-                details.purchaseInfo.purchaseData.orderId.trim().length() == 0) {
+        if (details.purchaseInfo.purchaseData.orderId == null || details.purchaseInfo.purchaseData.orderId.trim().length() == 0) {
             return false;
         }
         int index = details.purchaseInfo.purchaseData.orderId.indexOf('.');
@@ -742,7 +741,6 @@ public class BillingProcessor extends BillingBase {
                             throw new Exception("billing response code: " + billingResult.getResponseCode());
                         }
                     } catch (Exception e) {
-                        reportBillingError(Constants.BILLING_ERROR_SKUDETAILS_FAILED, e);
                         if (listener != null) {
                             listener.fail(e);
                         }
