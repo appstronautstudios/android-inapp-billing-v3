@@ -669,32 +669,47 @@ public class BillingProcessor extends BillingBase {
         return null;
     }
 
-    public void consumePurchase(final Purchase purchase) {
+    public void consumePurchase(final String sku) {
         try {
-            ConsumeParams consumeParams =
-                    ConsumeParams.newBuilder()
-                            .setPurchaseToken(purchase.getPurchaseToken())
-                            .build();
-
-            ConsumeResponseListener listener = new ConsumeResponseListener() {
+            billingClient.queryPurchasesAsync(BillingClient.SkuType.INAPP, new PurchasesResponseListener() {
                 @Override
-                public void onConsumeResponse(BillingResult billingResult, String purchaseToken) {
-                    if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                        if (eventHandler != null) {
-                            TransactionDetails transactionDetails = getPurchaseTransactionDetails(purchase.getSkus().get(0));
-                            eventHandler.onProductPurchased(purchase.getSkus().get(0), transactionDetails);
-                            cachedProducts.remove(transactionDetails.productId);
-                            Log.d(LOG_TAG, "Successfully consumed " + transactionDetails.productId + " purchase.");
-                        }
-                    } else {
-                        if (eventHandler != null) {
-                            eventHandler.onBillingError(billingResult.getResponseCode(), new Throwable(billingResult.getDebugMessage()));
+                public void onQueryPurchasesResponse(@NonNull BillingResult billingResult, @NonNull List<Purchase> list) {
+                    Purchase purchase = null;
+                    for(Purchase p: list) {
+                        if(p.getSkus().contains(sku)) {
+                            purchase = list.get(0);
                         }
                     }
-                }
-            };
+                    final Purchase fPurchase = purchase;
+                    if(purchase == null) {
+                        return;
+                    } else {
+                        ConsumeParams consumeParams = ConsumeParams.newBuilder()
+                                .setPurchaseToken(purchase.getPurchaseToken())
+                                .build();
 
-            billingClient.consumeAsync(consumeParams, listener);
+                        ConsumeResponseListener listener = new ConsumeResponseListener() {
+                            @Override
+                            public void onConsumeResponse(BillingResult billingResult, String purchaseToken) {
+                                if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                                    if (eventHandler != null) {
+                                        TransactionDetails transactionDetails = getPurchaseTransactionDetails(fPurchase.getSkus().get(0));
+                                        eventHandler.onProductPurchased(fPurchase.getSkus().get(0), transactionDetails);
+                                        cachedProducts.remove(transactionDetails.productId);
+                                        Log.d(LOG_TAG, "Successfully consumed " + transactionDetails.productId + " purchase.");
+                                    }
+                                } else {
+                                    if (eventHandler != null) {
+                                        eventHandler.onBillingError(billingResult.getResponseCode(), new Throwable(billingResult.getDebugMessage()));
+                                    }
+                                }
+                            }
+                        };
+
+                        billingClient.consumeAsync(consumeParams, listener);
+                    }
+                }
+            });
         } catch (Exception e) {
             reportBillingError(Constants.BILLING_ERROR_CONSUME_FAILED, e);
         }
