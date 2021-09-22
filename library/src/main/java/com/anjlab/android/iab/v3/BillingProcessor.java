@@ -694,7 +694,6 @@ public class BillingProcessor extends BillingBase {
                                 if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                                     if (eventHandler != null) {
                                         TransactionDetails transactionDetails = getPurchaseTransactionDetails(fPurchase.getSkus().get(0));
-                                        eventHandler.onProductPurchased(fPurchase.getSkus().get(0), transactionDetails);
                                         cachedProducts.remove(transactionDetails.productId);
                                         Log.d(LOG_TAG, "Successfully consumed " + transactionDetails.productId + " purchase.");
                                     }
