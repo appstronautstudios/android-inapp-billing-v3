@@ -136,37 +136,53 @@ public class BillingProcessor extends BillingBase {
     };
 
     private void handlePurchase(final Purchase purchase) {
-        AcknowledgePurchaseResponseListener acknowledgePurchaseResponseListener = new AcknowledgePurchaseResponseListener() {
-            @Override
-            public void onAcknowledgePurchaseResponse(@NonNull BillingResult billingResult) {
-                if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                    if (eventHandler != null) {
-                        TransactionDetails transactionDetails = getPurchaseTransactionDetails(purchase.getSkus().get(0));
-                        eventHandler.onProductPurchased(purchase.getSkus().get(0), transactionDetails);
-                    }
+        if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+            try {
+                // old code from handleActivityResult. Adds the purchase to the cache
+                String purchaseData = purchase.getOriginalJson();
+                String dataSignature = purchase.getSignature();
+                JSONObject purchaseJson = new JSONObject(purchaseData);
+                String productId = purchaseJson.getString(Constants.RESPONSE_PRODUCT_ID);
+                if (verifyPurchaseSignature(productId, purchaseData, dataSignature)) {
+                    String purchaseType = detectPurchaseTypeFromPurchaseResponseData(purchaseJson);
+                    BillingCache cache = purchaseType.equals(Constants.PRODUCT_TYPE_SUBSCRIPTION) ? cachedSubscriptions : cachedProducts;
+                    cache.put(productId, purchaseData, dataSignature);
                 } else {
+                    // invalid signature, bail out
+                    reportBillingError(Constants.BILLING_ERROR_INVALID_SIGNATURE, null);
+                    return;
+                }
+                // what does this do?
+                savePurchasePayload(null);
+
+                if (!purchase.isAcknowledged()) {
+                    // purchase not yet acknowledged
+                    AcknowledgePurchaseParams acknowledgePurchaseParams = AcknowledgePurchaseParams.newBuilder()
+                            .setPurchaseToken(purchase.getPurchaseToken())
+                            .build();
+                    billingClient.acknowledgePurchase(acknowledgePurchaseParams, new AcknowledgePurchaseResponseListener() {
+                        @Override
+                        public void onAcknowledgePurchaseResponse(@NonNull BillingResult billingResult) {
+                            if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                                if (eventHandler != null) {
+                                    TransactionDetails transactionDetails = getPurchaseTransactionDetails(purchase.getSkus().get(0));
+                                    eventHandler.onProductPurchased(purchase.getSkus().get(0), transactionDetails);
+                                }
+                            } else {
+                                if (eventHandler != null) {
+                                    eventHandler.onBillingError(billingResult.getResponseCode(), new Throwable(billingResult.getDebugMessage()));
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    // purchase already acknowledged
                     if (eventHandler != null) {
-                        eventHandler.onBillingError(billingResult.getResponseCode(), new Throwable(billingResult.getDebugMessage()));
+                        eventHandler.onProductPurchased(productId, new TransactionDetails(new PurchaseInfo(purchaseData, dataSignature)));
                     }
                 }
-            }
-        };
-
-        if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
-            if (!purchase.isAcknowledged()) {
-                AcknowledgePurchaseParams acknowledgePurchaseParams =
-                        AcknowledgePurchaseParams.newBuilder()
-                                .setPurchaseToken(purchase.getPurchaseToken())
-                                .build();
-
-                Intent intent = new Intent();
-                intent.putExtra(Constants.RESPONSE_CODE, BillingClient.BillingResponseCode.OK);
-                intent.putExtra(Constants.INAPP_PURCHASE_DATA, purchase.getOriginalJson());
-                intent.putExtra(Constants.RESPONSE_INAPP_SIGNATURE, purchase.getSignature());
-
-                handleActivityResult(PURCHASE_FLOW_REQUEST_CODE, Activity.RESULT_OK, intent);
-
-                billingClient.acknowledgePurchase(acknowledgePurchaseParams, acknowledgePurchaseResponseListener);
+            } catch (Exception e) {
+                reportBillingError(Constants.BILLING_ERROR_OTHER_ERROR, e);
             }
         }
     }
@@ -675,13 +691,13 @@ public class BillingProcessor extends BillingBase {
                 @Override
                 public void onQueryPurchasesResponse(@NonNull BillingResult billingResult, @NonNull List<Purchase> list) {
                     Purchase purchase = null;
-                    for(Purchase p: list) {
-                        if(p.getSkus().contains(sku)) {
+                    for (Purchase p : list) {
+                        if (p.getSkus().contains(sku)) {
                             purchase = list.get(0);
                         }
                     }
                     final Purchase fPurchase = purchase;
-                    if(purchase == null) {
+                    if (purchase == null) {
                         return;
                     } else {
                         ConsumeParams consumeParams = ConsumeParams.newBuilder()
@@ -792,55 +808,6 @@ public class BillingProcessor extends BillingBase {
             return Constants.PRODUCT_TYPE_SUBSCRIPTION;
         }
         return Constants.PRODUCT_TYPE_MANAGED;
-    }
-
-    /**
-     * Do not need anymore. This is going to be removed in the future.
-     *
-     * @param requestCode
-     * @param resultCode
-     * @param data
-     * @return
-     */
-    @Deprecated
-    public boolean handleActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode != PURCHASE_FLOW_REQUEST_CODE) {
-            return false;
-        }
-        if (data == null) {
-            Log.e(LOG_TAG, "handleActivityResult: data is null!");
-            return false;
-        }
-        int responseCode = data.getIntExtra(Constants.RESPONSE_CODE, Constants.BILLING_RESPONSE_RESULT_OK);
-        Log.d(LOG_TAG, String.format("resultCode = %d, responseCode = %d", resultCode, responseCode));
-        if (resultCode == Activity.RESULT_OK &&
-                responseCode == Constants.BILLING_RESPONSE_RESULT_OK) {
-            String purchaseData = data.getStringExtra(Constants.INAPP_PURCHASE_DATA);
-            String dataSignature = data.getStringExtra(Constants.RESPONSE_INAPP_SIGNATURE);
-            try {
-                JSONObject purchase = new JSONObject(purchaseData);
-                String productId = purchase.getString(Constants.RESPONSE_PRODUCT_ID);
-                if (verifyPurchaseSignature(productId, purchaseData, dataSignature)) {
-                    String purchaseType = detectPurchaseTypeFromPurchaseResponseData(purchase);
-                    BillingCache cache = purchaseType.equals(Constants.PRODUCT_TYPE_SUBSCRIPTION)
-                            ? cachedSubscriptions : cachedProducts;
-                    cache.put(productId, purchaseData, dataSignature);
-                    if (eventHandler != null) {
-                        eventHandler.onProductPurchased(
-                                productId,
-                                new TransactionDetails(new PurchaseInfo(purchaseData, dataSignature)));
-                    }
-                } else {
-                    reportBillingError(Constants.BILLING_ERROR_INVALID_SIGNATURE, null);
-                }
-            } catch (Exception e) {
-                reportBillingError(Constants.BILLING_ERROR_OTHER_ERROR, e);
-            }
-            savePurchasePayload(null);
-        } else {
-            reportBillingError(responseCode, null);
-        }
-        return true;
     }
 
     private boolean verifyPurchaseSignature(String productId, String purchaseData, String dataSignature) {

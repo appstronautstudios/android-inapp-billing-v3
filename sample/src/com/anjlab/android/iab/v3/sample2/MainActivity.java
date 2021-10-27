@@ -81,12 +81,6 @@ public class MainActivity extends Activity implements BillingProcessor.IBillingH
         super.onDestroy();
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (!bp.handleActivityResult(requestCode, resultCode, data))
-            super.onActivityResult(requestCode, resultCode, data);
-    }
-
     private void updateTextViews() {
         TextView text = (TextView) findViewById(R.id.productIdTextView);
         text.setText(String.format("%s is%s purchased", PRODUCT_ID, bp.isPurchased(PRODUCT_ID) ? "" : " not"));
@@ -113,10 +107,8 @@ public class MainActivity extends Activity implements BillingProcessor.IBillingH
                 bp.purchase(this, PRODUCT_ID);
                 break;
             case R.id.consumeButton:
-                boolean consumed = bp.consumePurchase(PRODUCT_ID);
+                bp.consumePurchase(PRODUCT_ID);
                 updateTextViews();
-                if (consumed)
-                    showToast("Successfully consumed");
                 break;
             case R.id.productDetailsButton:
                 bp.getPurchaseListingDetails(PRODUCT_ID, new SuccessFailListener() {
