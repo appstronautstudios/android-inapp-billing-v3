@@ -588,18 +588,7 @@ public class BillingProcessor extends BillingBase {
             billingClient.querySkuDetailsAsync(params.build(), new SkuDetailsResponseListener() {
                 @Override
                 public void onSkuDetailsResponse(@NonNull BillingResult billingResult, List<com.android.billingclient.api.SkuDetails> skuDetailsList) {
-                    if (skuDetailsList.size() > 0) {
-                        // what is this for?
-//                        for (int i = 0; i < skuDetailsList.size(); i++) {
-//                            skuDetails = skuDetailsList.get(i);
-//                            skuDetails.getPrice();
-//                            skuDetails.getTitle();
-//                            skuDetails.getDescription();
-//                            skuDetails.getSku();
-//                            skuDetails.getIntroductoryPrice();
-//                            skuDetails.getFreeTrialPeriod();
-//                        }
-
+                    if (skuDetailsList != null && !skuDetailsList.isEmpty()) {
                         final com.android.billingclient.api.SkuDetails finalSkuDetails = skuDetailsList.get(0);
                         activity.runOnUiThread(new Runnable() {
                             @Override
