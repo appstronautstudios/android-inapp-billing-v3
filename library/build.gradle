@@ -2,11 +2,8 @@ apply plugin: 'com.android.library'
 
 android {
     compileSdkVersion 30
-    buildToolsVersion '28.0.3'
 
     defaultConfig {
-        versionCode 1
-        versionName project.version
         minSdkVersion 14
         targetSdkVersion 30
         consumerProguardFiles 'progress-proguard.txt'
