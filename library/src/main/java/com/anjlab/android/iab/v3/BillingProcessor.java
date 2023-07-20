@@ -720,7 +720,11 @@ public class BillingProcessor extends BillingBase {
     }
 
     private void getSkuDetailsAsync(final ArrayList<String> productIdList, String purchaseType, final SuccessFailListener listener) {
-        if (billingClient != null && productIdList != null && productIdList.size() > 0) {
+        if (billingClient == null) {
+            listener.fail(new Exception("billing client is null"));
+        } else if (productIdList == null || productIdList.size() <= 0) {
+            listener.success(new ArrayList<>());
+        } else {
             SkuDetailsParams skuDetailsParams = SkuDetailsParams.newBuilder()
                     .setSkusList(productIdList)
                     .setType(purchaseType)
