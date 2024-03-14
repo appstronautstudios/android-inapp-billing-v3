@@ -47,7 +47,6 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -143,9 +142,9 @@ public class BillingProcessor extends BillingBase {
                 String dataSignature = purchase.getSignature();
                 JSONObject purchaseJson = new JSONObject(purchaseData);
                 String productId = purchaseJson.getString(Constants.RESPONSE_PRODUCT_ID);
+                String purchaseType = detectPurchaseTypeFromPurchaseResponseData(purchaseJson);
+                BillingCache cache = purchaseType.equals(Constants.PRODUCT_TYPE_SUBSCRIPTION) ? cachedSubscriptions : cachedProducts;
                 if (verifyPurchaseSignature(productId, purchaseData, dataSignature)) {
-                    String purchaseType = detectPurchaseTypeFromPurchaseResponseData(purchaseJson);
-                    BillingCache cache = purchaseType.equals(Constants.PRODUCT_TYPE_SUBSCRIPTION) ? cachedSubscriptions : cachedProducts;
                     cache.put(productId, purchaseData, dataSignature);
                 } else {
                     // invalid signature, bail out
@@ -165,7 +164,7 @@ public class BillingProcessor extends BillingBase {
                         public void onAcknowledgePurchaseResponse(@NonNull BillingResult billingResult) {
                             if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                                 if (eventHandler != null) {
-                                    TransactionDetails transactionDetails = getPurchaseTransactionDetails(productId);
+                                    TransactionDetails transactionDetails = getPurchaseTransactionDetails(productId, cache);
                                     eventHandler.onProductPurchased(productId, transactionDetails);
                                 }
                             } else {
@@ -410,8 +409,12 @@ public class BillingProcessor extends BillingBase {
                                     if (!isPurchased(productId) && !isSubscribed(productId)) {
                                         loadOwnedPurchasesFromGoogle();
                                     }
-
-                                    TransactionDetails details = getPurchaseTransactionDetails(productId);
+                                    TransactionDetails details = null;
+                                    if (purchaseType.equals(Constants.PRODUCT_TYPE_SUBSCRIPTION)) {
+                                        getSubscriptionTransactionDetails(productId);
+                                    } else {
+                                        getProductTransactionDetails(productId);
+                                    }
                                     if (!checkMerchant(details)) {
                                         reportBillingError(Constants.BILLING_ERROR_INVALID_MERCHANT_ID, null);
                                     }
@@ -470,15 +473,6 @@ public class BillingProcessor extends BillingBase {
         return merchantId.compareTo(developerMerchantId) == 0;
     }
 
-    @Nullable
-    private TransactionDetails getPurchaseTransactionDetails(String productId, BillingCache cache) {
-        PurchaseInfo details = cache.getDetails(productId);
-        if (details != null && !TextUtils.isEmpty(details.responseData)) {
-            return new TransactionDetails(details);
-        }
-        return null;
-    }
-
     public void consumePurchase(final String sku) {
         try {
             billingClient.queryPurchasesAsync(BillingClient.SkuType.INAPP, new PurchasesResponseListener() {
@@ -503,7 +497,7 @@ public class BillingProcessor extends BillingBase {
                             public void onConsumeResponse(BillingResult billingResult, String purchaseToken) {
                                 if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                                     if (eventHandler != null) {
-                                        TransactionDetails transactionDetails = getPurchaseTransactionDetails(fPurchase.getSkus().get(0));
+                                        TransactionDetails transactionDetails = getProductTransactionDetails(fPurchase.getSkus().get(0));
                                         cachedProducts.remove(transactionDetails.productId);
                                         Log.d(LOG_TAG, "Successfully consumed " + transactionDetails.productId + " purchase.");
                                     }
@@ -586,13 +580,22 @@ public class BillingProcessor extends BillingBase {
     }
 
     @Nullable
-    public TransactionDetails getPurchaseTransactionDetails(String productId) {
+    public TransactionDetails getProductTransactionDetails(String productId) {
         return getPurchaseTransactionDetails(productId, cachedProducts);
     }
 
     @Nullable
     public TransactionDetails getSubscriptionTransactionDetails(String productId) {
         return getPurchaseTransactionDetails(productId, cachedSubscriptions);
+    }
+
+    @Nullable
+    private TransactionDetails getPurchaseTransactionDetails(String productId, BillingCache cache) {
+        PurchaseInfo details = cache.getDetails(productId);
+        if (details != null && !TextUtils.isEmpty(details.responseData)) {
+            return new TransactionDetails(details);
+        }
+        return null;
     }
 
     private String detectPurchaseTypeFromPurchaseResponseData(JSONObject purchase) {
