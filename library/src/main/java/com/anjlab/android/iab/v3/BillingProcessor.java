@@ -165,8 +165,8 @@ public class BillingProcessor extends BillingBase {
                         public void onAcknowledgePurchaseResponse(@NonNull BillingResult billingResult) {
                             if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                                 if (eventHandler != null) {
-                                    TransactionDetails transactionDetails = getPurchaseTransactionDetails(purchase.getSkus().get(0));
-                                    eventHandler.onProductPurchased(purchase.getSkus().get(0), transactionDetails);
+                                    TransactionDetails transactionDetails = getPurchaseTransactionDetails(productId);
+                                    eventHandler.onProductPurchased(productId, transactionDetails);
                                 }
                             } else {
                                 if (eventHandler != null) {
