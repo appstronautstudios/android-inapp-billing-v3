@@ -47,7 +47,6 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -143,9 +142,9 @@ public class BillingProcessor extends BillingBase {
                 String dataSignature = purchase.getSignature();
                 JSONObject purchaseJson = new JSONObject(purchaseData);
                 String productId = purchaseJson.getString(Constants.RESPONSE_PRODUCT_ID);
+                String purchaseType = detectPurchaseTypeFromPurchaseResponseData(purchaseJson);
+                BillingCache cache = purchaseType.equals(Constants.PRODUCT_TYPE_SUBSCRIPTION) ? cachedSubscriptions : cachedProducts;
                 if (verifyPurchaseSignature(productId, purchaseData, dataSignature)) {
-                    String purchaseType = detectPurchaseTypeFromPurchaseResponseData(purchaseJson);
-                    BillingCache cache = purchaseType.equals(Constants.PRODUCT_TYPE_SUBSCRIPTION) ? cachedSubscriptions : cachedProducts;
                     cache.put(productId, purchaseData, dataSignature);
                 } else {
                     // invalid signature, bail out
@@ -165,8 +164,8 @@ public class BillingProcessor extends BillingBase {
                         public void onAcknowledgePurchaseResponse(@NonNull BillingResult billingResult) {
                             if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                                 if (eventHandler != null) {
-                                    TransactionDetails transactionDetails = getPurchaseTransactionDetails(purchase.getSkus().get(0));
-                                    eventHandler.onProductPurchased(purchase.getSkus().get(0), transactionDetails);
+                                    TransactionDetails transactionDetails = getPurchaseTransactionDetails(productId, cache);
+                                    eventHandler.onProductPurchased(productId, transactionDetails);
                                 }
                             } else {
                                 if (eventHandler != null) {
@@ -351,203 +350,8 @@ public class BillingProcessor extends BillingBase {
         return purchase(activity, null, productId, Constants.PRODUCT_TYPE_MANAGED, null);
     }
 
-    public boolean purchase(Activity activity, String productId, String developerPayload) {
-        return purchase(activity, productId, Constants.PRODUCT_TYPE_MANAGED, developerPayload);
-    }
-
-    /***
-     * Purchase a product
-     *
-     * @param activity the activity calling this method
-     * @param productId the product id to purchase
-     * @param extraParams A bundle object containing extra parameters to pass to
-     *                          getBuyIntentExtraParams()
-     * @see <a href="https://developer.android.com/google/play/billing/billing_reference.html#getBuyIntentExtraParams">extra
-     * params documentation on developer.android.com</a>
-     * @return {@code false} if the billing system is not initialized, {@code productId} is empty
-     * or if an exception occurs. Will return {@code true} otherwise.
-     */
-    public boolean purchase(Activity activity, String productId, String developerPayload, Bundle extraParams) {
-        if (!isOneTimePurchaseWithExtraParamsSupported(extraParams)) {
-            return purchase(activity, productId, developerPayload);
-        } else {
-            return purchase(activity, null, productId, Constants.PRODUCT_TYPE_MANAGED, developerPayload, extraParams);
-        }
-    }
-
     public boolean subscribe(Activity activity, String productId) {
         return purchase(activity, null, productId, Constants.PRODUCT_TYPE_SUBSCRIPTION, null);
-    }
-
-    public boolean subscribe(Activity activity, String productId, String developerPayload) {
-        return purchase(activity, productId, Constants.PRODUCT_TYPE_SUBSCRIPTION, developerPayload);
-    }
-
-    /**
-     * Subscribe to a product
-     *
-     * @param activity    the activity calling this method
-     * @param productId   the product id to purchase
-     * @param extraParams A bundle object containing extra parameters to pass to getBuyIntentExtraParams()
-     * @return {@code false} if the billing system is not initialized, {@code productId} is empty or if an exception occurs.
-     * Will return {@code true} otherwise.
-     * @see <a href="https://developer.android.com/google/play/billing/billing_reference.html#getBuyIntentExtraParams">extra
-     * params documentation on developer.android.com</a>
-     */
-    public boolean subscribe(Activity activity, String productId, String developerPayload, Bundle extraParams) {
-        return purchase(activity,
-                null,
-                productId,
-                Constants.PRODUCT_TYPE_SUBSCRIPTION,
-                developerPayload,
-                isSubscriptionWithExtraParamsSupported(extraParams) ? extraParams : null);
-    }
-
-    public boolean isSubscriptionUpdateSupported() {
-        // Avoid calling the service again if this value is true
-        if (isSubsUpdateSupported) {
-            return true;
-        }
-
-        int response = billingClient.isFeatureSupported(BillingClient.FeatureType.SUBSCRIPTIONS_UPDATE).getResponseCode();
-
-        if (response == BillingClient.BillingResponseCode.OK) {
-            isSubsUpdateSupported = true;
-        }
-
-        return isSubsUpdateSupported;
-    }
-
-    /**
-     * Check API v7 support for subscriptions
-     *
-     * @param extraParams
-     * @return {@code true} if the current API supports calling getBuyIntentExtraParams() for
-     * subscriptions, {@code false} otherwise.
-     */
-    public boolean isSubscriptionWithExtraParamsSupported(Bundle extraParams) {
-        if (isSubscriptionExtraParamsSupported) {
-            return true;
-        }
-
-        int response = billingClient.isFeatureSupported(BillingClient.FeatureType.SUBSCRIPTIONS_ON_VR).getResponseCode();
-
-        if (response == BillingClient.BillingResponseCode.OK) {
-            isSubscriptionExtraParamsSupported = true;
-        }
-
-        return isSubscriptionExtraParamsSupported;
-    }
-
-    /**
-     * Check API v7 support for one-time purchases
-     *
-     * @param extraParams
-     * @return {@code true} if the current API supports calling getBuyIntentExtraParams() for
-     * one-time purchases, {@code false} otherwise.
-     */
-    public boolean isOneTimePurchaseWithExtraParamsSupported(Bundle extraParams) {
-        if (isOneTimePurchaseExtraParamsSupported) {
-            return true;
-        }
-
-        int response = billingClient.isFeatureSupported(BillingClient.FeatureType.IN_APP_ITEMS_ON_VR).getResponseCode();
-
-        if (response == BillingClient.BillingResponseCode.OK) {
-            isOneTimePurchaseExtraParamsSupported = true;
-        }
-
-        return isOneTimePurchaseExtraParamsSupported;
-    }
-
-    /**
-     * Change subscription i.e. upgrade or downgrade
-     *
-     * @param activity     the activity calling this method
-     * @param oldProductId passing null or empty string will act the same as {@link #subscribe(Activity, String)}
-     * @param productId    the new subscription id
-     * @return {@code false} if {@code oldProductId} is not {@code null} AND change subscription
-     * is not supported.
-     */
-    public boolean updateSubscription(Activity activity, String oldProductId, String productId) {
-        return updateSubscription(activity, oldProductId, productId, null);
-    }
-
-    /**
-     * Change subscription i.e. upgrade or downgrade
-     *
-     * @param activity         the activity calling this method
-     * @param oldProductId     passing null or empty string will act the same as {@link #subscribe(Activity, String)}
-     * @param productId        the new subscription id
-     * @param developerPayload the developer payload
-     * @return {@code false} if {@code oldProductId} is not {@code null} AND change subscription
-     * is not supported.
-     */
-    public boolean updateSubscription(Activity activity, String oldProductId, String productId, String developerPayload) {
-        List<String> oldProductIds = null;
-        if (!TextUtils.isEmpty(oldProductId)) {
-            oldProductIds = Collections.singletonList(oldProductId);
-        }
-        return updateSubscription(activity, oldProductIds, productId, developerPayload);
-    }
-
-    /**
-     * Change subscription i.e. upgrade or downgrade
-     *
-     * @param activity      the activity calling this method
-     * @param oldProductIds passing null will act the same as {@link #subscribe(Activity, String)}
-     * @param productId     the new subscription id
-     * @return {@code false} if {@code oldProductIds} is not {@code null} AND change subscription
-     * is not supported.
-     */
-    public boolean updateSubscription(Activity activity, List<String> oldProductIds, String productId) {
-        return updateSubscription(activity, oldProductIds, productId, null);
-    }
-
-    /**
-     * Change subscription i.e. upgrade or downgrade
-     *
-     * @param activity         the activity calling this method
-     * @param oldProductIds    passing null will act the same as {@link #subscribe(Activity, String)}
-     * @param productId        the new subscription id
-     * @param developerPayload the developer payload
-     * @return {@code false} if {@code oldProductIds} is not {@code null} AND change subscription
-     * is not supported.
-     */
-    public boolean updateSubscription(Activity activity, List<String> oldProductIds, String productId, String developerPayload) {
-        if (oldProductIds != null && !isSubscriptionUpdateSupported()) {
-            return false;
-        }
-        return purchase(activity, oldProductIds, productId, Constants.PRODUCT_TYPE_SUBSCRIPTION, developerPayload);
-    }
-
-    /**
-     * @param activity         the activity calling this method
-     * @param oldProductIds    passing null will act the same as {@link #subscribe(Activity, String)}
-     * @param productId        the new subscription id
-     * @param developerPayload the developer payload
-     * @param extraParams      A bundle object containing extra parameters to pass to getBuyIntentExtraParams()
-     * @return {@code false} if {@code oldProductIds} is not {@code null} AND change subscription
-     * is not supported.
-     * @see <a href="https://developer.android.com/google/play/billing/billing_reference.html#getBuyIntentExtraParams">extra
-     * params documentation on developer.android.com</a>
-     */
-    public boolean updateSubscription(Activity activity, List<String> oldProductIds, String productId, String developerPayload, Bundle extraParams) {
-        if (oldProductIds != null && !isSubscriptionUpdateSupported()) {
-            return false;
-        }
-
-        // if API v7 is not supported, let's fallback to the previous method
-        if (!isSubscriptionWithExtraParamsSupported(extraParams)) {
-            return updateSubscription(activity, oldProductIds, productId, developerPayload);
-        }
-
-        return purchase(activity,
-                oldProductIds,
-                productId,
-                Constants.PRODUCT_TYPE_SUBSCRIPTION,
-                developerPayload,
-                extraParams);
     }
 
     private boolean purchase(Activity activity, String productId, String purchaseType, String developerPayload) {
@@ -605,8 +409,12 @@ public class BillingProcessor extends BillingBase {
                                     if (!isPurchased(productId) && !isSubscribed(productId)) {
                                         loadOwnedPurchasesFromGoogle();
                                     }
-
-                                    TransactionDetails details = getPurchaseTransactionDetails(productId);
+                                    TransactionDetails details = null;
+                                    if (purchaseType.equals(Constants.PRODUCT_TYPE_SUBSCRIPTION)) {
+                                        getSubscriptionTransactionDetails(productId);
+                                    } else {
+                                        getProductTransactionDetails(productId);
+                                    }
                                     if (!checkMerchant(details)) {
                                         reportBillingError(Constants.BILLING_ERROR_INVALID_MERCHANT_ID, null);
                                     }
@@ -665,15 +473,6 @@ public class BillingProcessor extends BillingBase {
         return merchantId.compareTo(developerMerchantId) == 0;
     }
 
-    @Nullable
-    private TransactionDetails getPurchaseTransactionDetails(String productId, BillingCache cache) {
-        PurchaseInfo details = cache.getDetails(productId);
-        if (details != null && !TextUtils.isEmpty(details.responseData)) {
-            return new TransactionDetails(details);
-        }
-        return null;
-    }
-
     public void consumePurchase(final String sku) {
         try {
             billingClient.queryPurchasesAsync(BillingClient.SkuType.INAPP, new PurchasesResponseListener() {
@@ -698,7 +497,7 @@ public class BillingProcessor extends BillingBase {
                             public void onConsumeResponse(BillingResult billingResult, String purchaseToken) {
                                 if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                                     if (eventHandler != null) {
-                                        TransactionDetails transactionDetails = getPurchaseTransactionDetails(fPurchase.getSkus().get(0));
+                                        TransactionDetails transactionDetails = getProductTransactionDetails(fPurchase.getSkus().get(0));
                                         cachedProducts.remove(transactionDetails.productId);
                                         Log.d(LOG_TAG, "Successfully consumed " + transactionDetails.productId + " purchase.");
                                     }
@@ -781,13 +580,22 @@ public class BillingProcessor extends BillingBase {
     }
 
     @Nullable
-    public TransactionDetails getPurchaseTransactionDetails(String productId) {
+    public TransactionDetails getProductTransactionDetails(String productId) {
         return getPurchaseTransactionDetails(productId, cachedProducts);
     }
 
     @Nullable
     public TransactionDetails getSubscriptionTransactionDetails(String productId) {
         return getPurchaseTransactionDetails(productId, cachedSubscriptions);
+    }
+
+    @Nullable
+    private TransactionDetails getPurchaseTransactionDetails(String productId, BillingCache cache) {
+        PurchaseInfo details = cache.getDetails(productId);
+        if (details != null && !TextUtils.isEmpty(details.responseData)) {
+            return new TransactionDetails(details);
+        }
+        return null;
     }
 
     private String detectPurchaseTypeFromPurchaseResponseData(JSONObject purchase) {
