@@ -36,11 +36,15 @@ import com.android.billingclient.api.BillingFlowParams;
 import com.android.billingclient.api.BillingResult;
 import com.android.billingclient.api.ConsumeParams;
 import com.android.billingclient.api.ConsumeResponseListener;
+import com.android.billingclient.api.PendingPurchasesParams;
+import com.android.billingclient.api.ProductDetails;
+import com.android.billingclient.api.ProductDetailsResponseListener;
 import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesResponseListener;
 import com.android.billingclient.api.PurchasesUpdatedListener;
-import com.android.billingclient.api.SkuDetailsParams;
-import com.android.billingclient.api.SkuDetailsResponseListener;
+import com.android.billingclient.api.QueryProductDetailsParams;
+import com.android.billingclient.api.QueryProductDetailsResult;
+import com.android.billingclient.api.QueryPurchasesParams;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -239,19 +243,30 @@ public class BillingProcessor extends BillingBase {
 
     private void bindPlayServices() {
         try {
+            PendingPurchasesParams pendingParams = PendingPurchasesParams.newBuilder()
+                    .enableOneTimeProducts()
+                    .build();
+
             billingClient = BillingClient.newBuilder(getContext())
                     .setListener(purchasesUpdatedListener)
-                    .enablePendingPurchases()
+                    .enablePendingPurchases(pendingParams)
+                    .enableAutoServiceReconnection() // Enable auto-reconnection feature (PBL 8.0+)
                     .build();
             billingClient.startConnection(new BillingClientStateListener() {
                 @Override
                 public void onBillingSetupFinished(@NonNull BillingResult billingResult) {
-                    new HistoryInitializationTask().execute();
+                    if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                        new HistoryInitializationTask().execute();
+                    } else {
+                        reportBillingError(billingResult.getResponseCode(), new Throwable(billingResult.getDebugMessage()));
+                    }
                 }
 
                 @Override
                 public void onBillingServiceDisconnected() {
-
+                    // With enableAutoServiceReconnection(), this can safely be a no-op
+                    // or used solely for logging.
+                    Log.w(LOG_TAG, "Billing service disconnected.");
                 }
             });
         } catch (Exception e) {
@@ -262,7 +277,7 @@ public class BillingProcessor extends BillingBase {
     public static boolean isIabServiceAvailable(Context context) {
         final PackageManager packageManager = context.getPackageManager();
         List<ResolveInfo> list = packageManager.queryIntentServices(getBindServiceIntent(), 0);
-        return list != null && list.size() > 0;
+        return !list.isEmpty();
     }
 
     public void release() {
@@ -308,14 +323,18 @@ public class BillingProcessor extends BillingBase {
             return false;
         }
 
-        billingClient.queryPurchasesAsync(type, new PurchasesResponseListener() {
+        QueryPurchasesParams queryParams = QueryPurchasesParams.newBuilder()
+                .setProductType(type)
+                .build();
+
+        billingClient.queryPurchasesAsync(queryParams, new PurchasesResponseListener() {
             @Override
             public void onQueryPurchasesResponse(@NonNull BillingResult billingResult, @NonNull List<Purchase> list) {
                 try {
                     if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                         cacheStorage.clear();
                         ArrayList<Purchase> purchaseList = new ArrayList<>(list);
-                        if (purchaseList.size() > 0) {
+                        if (!purchaseList.isEmpty()) {
                             for (Purchase purchase : purchaseList) {
                                 String jsonData = purchase.getOriginalJson();
                                 String signature = purchase.getSignature();
@@ -385,20 +404,37 @@ public class BillingProcessor extends BillingBase {
             }
             savePurchasePayload(purchasePayload);
 
-            SkuDetailsParams.Builder params = SkuDetailsParams.newBuilder();
-            List<String> skuList = new ArrayList<>();
-            skuList.add(productId);
-            params.setSkusList(skuList).setType(purchaseType);
-            billingClient.querySkuDetailsAsync(params.build(), new SkuDetailsResponseListener() {
+            List<QueryProductDetailsParams.Product> productList = new ArrayList<>();
+            productList.add(QueryProductDetailsParams.Product.newBuilder()
+                    .setProductId(productId)
+                    .setProductType(purchaseType)
+                    .build());
+
+            QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
+                    .setProductList(productList)
+                    .build();
+
+            billingClient.queryProductDetailsAsync(params, new ProductDetailsResponseListener() {
                 @Override
-                public void onSkuDetailsResponse(@NonNull BillingResult billingResult, List<com.android.billingclient.api.SkuDetails> skuDetailsList) {
-                    if (skuDetailsList != null && !skuDetailsList.isEmpty()) {
-                        final com.android.billingclient.api.SkuDetails finalSkuDetails = skuDetailsList.get(0);
+                public void onProductDetailsResponse(@NonNull BillingResult billingResult, @NonNull QueryProductDetailsResult queryProductDetailsResult) {
+                    List<ProductDetails> detailsList = queryProductDetailsResult.getProductDetailsList();
+                    if (!detailsList.isEmpty()) {
+                        final ProductDetails details = detailsList.get(0);
                         activity.runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
+                                List<BillingFlowParams.ProductDetailsParams> productDetailsParamsList = new ArrayList<>();
+                                BillingFlowParams.ProductDetailsParams.Builder paramBuilder = BillingFlowParams.ProductDetailsParams.newBuilder()
+                                        .setProductDetails(details);
+
+                                if (purchaseType.equals(Constants.PRODUCT_TYPE_SUBSCRIPTION) && details.getSubscriptionOfferDetails() != null && !details.getSubscriptionOfferDetails().isEmpty()) {
+                                    paramBuilder.setOfferToken(details.getSubscriptionOfferDetails().get(0).getOfferToken());
+                                }
+
+                                productDetailsParamsList.add(paramBuilder.build());
+
                                 BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
-                                        .setSkuDetails(finalSkuDetails)
+                                        .setProductDetailsParamsList(productDetailsParamsList)
                                         .build();
 
                                 // attempt to launch billing flow
@@ -475,13 +511,17 @@ public class BillingProcessor extends BillingBase {
 
     public void consumePurchase(final String sku) {
         try {
-            billingClient.queryPurchasesAsync(BillingClient.SkuType.INAPP, new PurchasesResponseListener() {
+            QueryPurchasesParams queryParams = QueryPurchasesParams.newBuilder()
+                    .setProductType(BillingClient.ProductType.INAPP)
+                    .build();
+
+            billingClient.queryPurchasesAsync(queryParams, new PurchasesResponseListener() {
                 @Override
                 public void onQueryPurchasesResponse(@NonNull BillingResult billingResult, @NonNull List<Purchase> list) {
                     Purchase purchase = null;
                     for (Purchase p : list) {
-                        if (p.getSkus().contains(sku)) {
-                            purchase = list.get(0);
+                        if (p.getProducts().contains(sku)) {
+                            purchase = p;
                         }
                     }
                     final Purchase fPurchase = purchase;
@@ -494,10 +534,10 @@ public class BillingProcessor extends BillingBase {
 
                         ConsumeResponseListener listener = new ConsumeResponseListener() {
                             @Override
-                            public void onConsumeResponse(BillingResult billingResult, String purchaseToken) {
+                            public void onConsumeResponse(BillingResult billingResult, @NonNull String purchaseToken) {
                                 if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                                     if (eventHandler != null) {
-                                        TransactionDetails transactionDetails = getProductTransactionDetails(fPurchase.getSkus().get(0));
+                                        TransactionDetails transactionDetails = getProductTransactionDetails(fPurchase.getProducts().get(0));
                                         cachedProducts.remove(transactionDetails.productId);
                                         Log.d(LOG_TAG, "Successfully consumed " + transactionDetails.productId + " purchase.");
                                     }
@@ -524,21 +564,32 @@ public class BillingProcessor extends BillingBase {
         } else if (productIdList == null || productIdList.size() <= 0) {
             listener.success(new ArrayList<>());
         } else {
-            SkuDetailsParams skuDetailsParams = SkuDetailsParams.newBuilder()
-                    .setSkusList(productIdList)
-                    .setType(purchaseType)
+            List<QueryProductDetailsParams.Product> productList = new ArrayList<>();
+            for (String id : productIdList) {
+                productList.add(QueryProductDetailsParams.Product.newBuilder()
+                        .setProductId(id)
+                        .setProductType(purchaseType)
+                        .build());
+            }
+
+            QueryProductDetailsParams queryParams = QueryProductDetailsParams.newBuilder()
+                    .setProductList(productList)
                     .build();
 
-            billingClient.querySkuDetailsAsync(skuDetailsParams, new SkuDetailsResponseListener() {
+            billingClient.queryProductDetailsAsync(queryParams, new ProductDetailsResponseListener() {
                 @Override
-                public void onSkuDetailsResponse(@NonNull BillingResult billingResult, List<com.android.billingclient.api.SkuDetails> detailsList) {
+                public void onProductDetailsResponse(@NonNull BillingResult billingResult, @NonNull QueryProductDetailsResult queryProductDetailsResult) {
                     try {
                         ArrayList<SkuDetails> productDetails = new ArrayList<>();
                         if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                            if (detailsList.size() > 0) {
-                                for (com.android.billingclient.api.SkuDetails skuDetails : detailsList) {
-                                    String jsonData = skuDetails.getOriginalJson();
-                                    JSONObject object = new JSONObject(jsonData);
+                            List<ProductDetails> detailsList = queryProductDetailsResult.getProductDetailsList();
+                            if (!detailsList.isEmpty()) {
+                                for (ProductDetails details : detailsList) {
+                                    JSONObject object = new JSONObject();
+                                    object.put("productId", details.getProductId());
+                                    object.put("type", details.getProductType());
+                                    object.put("title", details.getTitle());
+                                    object.put("description", details.getDescription());
                                     SkuDetails product = new SkuDetails(object);
                                     productDetails.add(product);
                                 }
@@ -677,7 +728,11 @@ public class BillingProcessor extends BillingBase {
                 final BillingResult[] purchaseResult = new BillingResult[1];
                 final ArrayList<Purchase> purchaseList = new ArrayList<>();
 
-                billingClient.queryPurchasesAsync(type, new PurchasesResponseListener() {
+                QueryPurchasesParams queryParams = QueryPurchasesParams.newBuilder()
+                        .setProductType(type)
+                        .build();
+
+                billingClient.queryPurchasesAsync(queryParams, new PurchasesResponseListener() {
                     @Override
                     public void onQueryPurchasesResponse(@NonNull BillingResult billingResult, @NonNull List<Purchase> list) {
                         purchaseResult[0] = billingResult;
@@ -685,8 +740,8 @@ public class BillingProcessor extends BillingBase {
                     }
                 });
 
-                if (purchaseResult[0].getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                    if (purchaseList.size() > 0) {
+                if (purchaseResult[0] != null && purchaseResult[0].getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                    if (!purchaseList.isEmpty()) {
                         for (Purchase purchase : purchaseList) {
                             String jsonData = purchase.getOriginalJson();
                             String signature = purchase.getSignature();
