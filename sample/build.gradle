@@ -1,23 +1,21 @@
-apply plugin: 'com.android.application'
+plugins { id 'com.android.application' }
 
 dependencies {
     implementation project(':library')
 //    implementation fileTree(dir: 'libs', include: '*.jar')
     //implementation 'com.android.support:support-annotations:28.0.0'
-    implementation 'androidx.annotation:annotation:1.2.0'
-
-
+    implementation 'androidx.annotation:annotation:1.10.0'
 }
 
 android {
-    compileSdkVersion 30
-    buildToolsVersion '30.0.3'
-
+    compileSdkVersion 34
+    namespace "com.anjlab.android.iab.v3.sample2"
     defaultConfig {
+        applicationId "com.anjlab.android.iab.v3.sample2"
         versionCode 2
         versionName '1.0'
-        minSdkVersion 14
-        targetSdkVersion 30
+        minSdkVersion 23
+        targetSdkVersion 34
     }
 
     sourceSets.main {
@@ -28,28 +26,28 @@ android {
     }
 
     signingConfigs {
-        release
+        release {
+            if (project.hasProperty('keyStoreFile')) {
+                android.signingConfigs.release.storeFile = file(keyStoreFile)
+            }
+
+            if (project.hasProperty('keyStorePassword')) {
+                android.signingConfigs.release.storePassword = keyStorePassword
+            }
+
+            if (project.hasProperty('keyStoreKeyAlias')) {
+                android.signingConfigs.release.keyAlias = keyStoreKeyAlias
+            }
+
+            if (project.hasProperty('keyStoreKeyPassword')) {
+                android.signingConfigs.release.keyPassword = keyStoreKeyPassword
+            }
+        }
     }
 
     buildTypes {
         release {
             signingConfig signingConfigs.release
         }
-    }
-
-    if (project.hasProperty('keyStoreFile')) {
-        android.signingConfigs.release.storeFile = file(keyStoreFile)
-    }
-
-    if (project.hasProperty('keyStorePassword')) {
-        android.signingConfigs.release.storePassword = keyStorePassword
-    }
-
-    if (project.hasProperty('keyStoreKeyAlias')) {
-        android.signingConfigs.release.keyAlias = keyStoreKeyAlias
-    }
-
-    if (project.hasProperty('keyStoreKeyPassword')) {
-        android.signingConfigs.release.keyPassword = keyStoreKeyPassword
     }
 }

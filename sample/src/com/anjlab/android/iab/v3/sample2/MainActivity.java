@@ -82,10 +82,10 @@ public class MainActivity extends Activity implements BillingProcessor.IBillingH
     }
 
     private void updateTextViews() {
-        TextView text = (TextView) findViewById(R.id.productIdTextView);
-        text.setText(String.format("%s is%s purchased", PRODUCT_ID, bp.isPurchased(PRODUCT_ID) ? "" : " not"));
-        text = (TextView) findViewById(R.id.subscriptionIdTextView);
-        text.setText(String.format("%s is%s subscribed", SUBSCRIPTION_ID, bp.isSubscribed(SUBSCRIPTION_ID) ? "" : " not"));
+        TextView productText = findViewById(R.id.productIdTextView);
+        productText.setText(String.format("%s is%s purchased", PRODUCT_ID, bp.isPurchased(PRODUCT_ID) ? "" : " not"));
+        TextView subText = findViewById(R.id.subscriptionIdTextView);
+        subText.setText(String.format("%s is%s subscribed", SUBSCRIPTION_ID, bp.isSubscribed(SUBSCRIPTION_ID) ? "" : " not"));
     }
 
     private void showToast(final String message) {
@@ -102,64 +102,57 @@ public class MainActivity extends Activity implements BillingProcessor.IBillingH
             showToast("Billing not initialized.");
             return;
         }
-        switch (v.getId()) {
-            case R.id.purchaseButton:
-                bp.purchase(this, PRODUCT_ID);
-                break;
-            case R.id.consumeButton:
-                bp.consumePurchase(PRODUCT_ID);
-                updateTextViews();
-                break;
-            case R.id.productDetailsButton:
-                bp.getPurchaseListingDetails(PRODUCT_ID, new SuccessFailListener() {
-                    @Override
-                    public void success(Object object) {
-                        ArrayList<SkuDetails> details = (ArrayList<SkuDetails>) object;
-                        if (details.size() > 0) {
-                            showToast(details.get(0).toString());
-                        } else {
-                            showToast("Failed to load product details");
-                        }
-                    }
 
-                    @Override
-                    public void fail(Object object) {
+        int id = v.getId();
+
+        if (id == R.id.purchaseButton) {
+            bp.purchase(this, PRODUCT_ID);
+        } else if (id == R.id.consumeButton) {
+            bp.consumePurchase(PRODUCT_ID);
+            updateTextViews();
+        } else if (id == R.id.productDetailsButton) {
+            bp.getPurchaseListingDetails(PRODUCT_ID, new SuccessFailListener() {
+                @Override
+                public void success(Object object) {
+                    ArrayList<SkuDetails> details = (ArrayList<SkuDetails>) object;
+                    if (!details.isEmpty()) {
+                        showToast(details.get(0).toString());
+                    } else {
                         showToast("Failed to load product details");
                     }
-                });
-                break;
-            case R.id.subscribeButton:
-                bp.subscribe(this, SUBSCRIPTION_ID);
-                break;
-            case R.id.updateSubscriptionsButton:
-                if (bp.loadOwnedPurchasesFromGoogle()) {
-                    showToast("Subscriptions updated.");
-                    updateTextViews();
                 }
-                break;
-            case R.id.subsDetailsButton:
-                bp.getSubscriptionListingDetails(SUBSCRIPTION_ID, new SuccessFailListener() {
-                    @Override
-                    public void success(Object object) {
-                        ArrayList<SkuDetails> details = (ArrayList<SkuDetails>) object;
-                        if (details.size() > 0) {
-                            showToast(details.get(0).toString());
-                        } else {
-                            showToast("Failed to load subscription details");
-                        }
-                    }
 
-                    @Override
-                    public void fail(Object object) {
+                @Override
+                public void fail(Object object) {
+                    showToast("Failed to load product details");
+                }
+            });
+        } else if (id == R.id.subscribeButton) {
+            bp.subscribe(this, SUBSCRIPTION_ID);
+        } else if (id == R.id.updateSubscriptionsButton) {
+            if (bp.loadOwnedPurchasesFromGoogle()) {
+                showToast("Subscriptions updated.");
+                updateTextViews();
+            }
+        } else if (id == R.id.subsDetailsButton) {
+            bp.getSubscriptionListingDetails(SUBSCRIPTION_ID, new SuccessFailListener() {
+                @Override
+                public void success(Object object) {
+                    ArrayList<SkuDetails> details = (ArrayList<SkuDetails>) object;
+                    if (!details.isEmpty()) {
+                        showToast(details.get(0).toString());
+                    } else {
                         showToast("Failed to load subscription details");
                     }
-                });
-                break;
-            case R.id.launchMoreButton:
-                startActivity(new Intent(this, MainActivity.class).putExtra(ACTIVITY_NUMBER, getIntent().getIntExtra(ACTIVITY_NUMBER, 1) + 1));
-                break;
-            default:
-                break;
+                }
+
+                @Override
+                public void fail(Object object) {
+                    showToast("Failed to load subscription details");
+                }
+            });
+        } else if (id == R.id.launchMoreButton) {
+            startActivity(new Intent(this, MainActivity.class).putExtra(ACTIVITY_NUMBER, getIntent().getIntExtra(ACTIVITY_NUMBER, 1) + 1));
         }
     }
 
@@ -181,7 +174,7 @@ public class MainActivity extends Activity implements BillingProcessor.IBillingH
 
     @Override
     public void onBillingError(int errorCode, @Nullable Throwable error) {
-        showToast("onBillingError: " + Integer.toString(errorCode));
+        showToast("onBillingError: " + errorCode);
     }
 
     @Override
